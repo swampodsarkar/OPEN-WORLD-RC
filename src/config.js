@@ -20,9 +20,11 @@ export const CONFIG = {
     boostMultiplier: 2
   },
   camera: {
-    followHeight: 25,
-    followDistance: 18,
-    lerpSpeed: 0.04
+    followHeight: 22,
+    followDistance: 15,
+    lerpSpeed: 0.1,
+    minFov: 60,
+    maxFov: 75
   },
   skyColor: 0x6699cc,
   groundColor: 0x3a7d3a

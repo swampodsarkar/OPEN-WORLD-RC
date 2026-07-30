@@ -66,6 +66,8 @@ export class GameScene {
     this.driftZones = [];
     this.topSpeedRecord = 0;
     this.driftZoneScore = 0;
+    this._raycaster = new THREE.Raycaster();
+    this._targetFov = 60;
     this._touchStartX = 0;
     this._touchStartY = 0;
   }
@@ -416,6 +418,9 @@ export class GameScene {
     car.occupy();
     this.syncHUD();
     this.createHeadlights(scene);
+    this.manager.camera.fov = CONFIG.camera.minFov;
+    this.manager.camera.updateProjectionMatrix();
+    this._targetFov = CONFIG.camera.minFov;
     this.sound.startEngine();
     this.sound.startTire();
     this.createExhaust();
@@ -877,8 +882,27 @@ export class GameScene {
       camHeight,
       car.mesh.position.z + dirZ * camDist
     );
-    this.manager.camera.position.lerp(targetCamPos, 0.06);
+
+    const origin = car.mesh.position.clone();
+    origin.y += 1.5;
+    this._raycaster.set(origin, targetCamPos.clone().sub(origin).normalize());
+    this._raycaster.far = camDist + 2;
+    const intersects = this._raycaster.intersectObjects(this.sceneObjects, true);
+    const hit = intersects.find(i => i.distance < camDist - 1);
+    if (hit) {
+      targetCamPos.copy(hit.point).add(this._raycaster.ray.direction.clone().multiplyScalar(0.5));
+      targetCamPos.y = Math.max(targetCamPos.y, camHeight * 0.7);
+    }
+
+    const lerpFactor = CONFIG.camera.lerpSpeed;
+    this.manager.camera.position.lerp(targetCamPos, lerpFactor);
     this.manager.camera.lookAt(this.cameraTarget);
+
+    const maxSpeedKmh = (car.boost ? CONFIG.car.maxSpeed * CONFIG.car.boostMultiplier : CONFIG.car.maxSpeed) * 3.6;
+    const speedKmh = Math.abs(car.speed) * 3.6;
+    this._targetFov = CONFIG.camera.minFov + (CONFIG.camera.maxFov - CONFIG.camera.minFov) * (speedKmh / maxSpeedKmh);
+    this.manager.camera.fov = THREE.MathUtils.lerp(this.manager.camera.fov, this._targetFov, dt * 4);
+    this.manager.camera.updateProjectionMatrix();
 
     this.applyScreenShake();
 
