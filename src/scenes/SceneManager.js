@@ -33,9 +33,7 @@ export class SceneManager {
     this.scene.background = null;
     this.scene.fog = null;
     this.current = this.scenes[key];
-    if (this.current && this.current.enter) {
-      this.current.enter(data);
-    }
+    if (this.current && this.current.enter) this.current.enter(data);
   }
 
   update(dt) {

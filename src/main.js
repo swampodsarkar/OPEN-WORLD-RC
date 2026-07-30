@@ -18,6 +18,7 @@ document.getElementById('game-container').appendChild(renderer.domElement);
 const manager = new SceneManager(renderer);
 
 const composer = new EffectComposer(renderer);
+window.__composer = composer;
 composer.addPass(new RenderPass(manager.scene, manager.camera));
 
 const bloomPass = new UnrealBloomPass(
