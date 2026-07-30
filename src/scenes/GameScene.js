@@ -163,11 +163,8 @@ export class GameScene {
     this.addObj(rd(-(inn + rw / 2), 0, rw, rl));
     this.addObj(rd((inn + rw / 2), 0, rw, rl));
 
-    const centerGeo = this.createRoadGeometry(rw * 0.6, rl, 32, 32);
-    const halfroad = rw / 2;
     const centerLineY = 0.08;
 
-    const centerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
     const dashedGeoH = new THREE.PlaneGeometry(3.5, 0.4);
     const dashedGeoV = new THREE.PlaneGeometry(0.4, 3.5);
@@ -192,7 +189,7 @@ export class GameScene {
     const addEdgeLines = (cx, cz, length, horizontal, mat) => {
       const offsets = [-rw / 2, rw / 2];
       offsets.forEach(off => {
-        const d = new THREE.Mesh(horizontal ? edgeLineGeo : edgeLineGeo.clone(), mat || centerMat);
+        const d = new THREE.Mesh(horizontal ? edgeLineGeo : edgeLineGeo.clone(), mat || yellowMat);
         d.position.set(horizontal ? cx : cx + off, 0.075, horizontal ? cz + off : cz);
         d.rotation.x = -Math.PI / 2;
         this.addObj(d);
@@ -299,18 +296,18 @@ export class GameScene {
 
     const crossGeo = new THREE.PlaneGeometry(1.1, 0.5);
     const clearMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
-    function addCrosswalk(cx, cz, horizontal) {
-      const count = 10, barW = 0.4, gap = 0.15;
-      const totalW = count * barW + (count - 1) * gap;
-      const startOff = -totalW / 2;
-      for (let i = 0; i < count; i++) {
-        const d = new THREE.Mesh(horizontal ? crossGeo : crossGeo.clone(), clearMat);
-        const t = startOff + i * (barW + gap);
-        d.position.set(horizontal ? cx : cx + t, 0.085, horizontal ? cz + t : cz);
-        d.rotation.x = -Math.PI / 2;
-        this.addObj(d);
-      }
-    }
+     const addCrosswalk = (cx, cz, horizontal) => {
+       const count = 10, barW = 0.4, gap = 0.15;
+       const totalW = count * barW + (count - 1) * gap;
+       const startOff = -totalW / 2;
+       for (let i = 0; i < count; i++) {
+         const d = new THREE.Mesh(horizontal ? crossGeo : crossGeo.clone(), clearMat);
+         const t = startOff + i * (barW + gap);
+         d.position.set(horizontal ? cx : cx + t, 0.085, horizontal ? cz + t : cz);
+         d.rotation.x = -Math.PI / 2;
+         this.addObj(d);
+       }
+     };
     addCrosswalk(0, -(inn + rw / 2 + rw / 2 + 1.8), true);
     addCrosswalk(0, (inn + rw / 2 - rw / 2 - 1.8), true);
     addCrosswalk(-(inn + rw / 2 + rw / 2 + 1.8), 0, false);
