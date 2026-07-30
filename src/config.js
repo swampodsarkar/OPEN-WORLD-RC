@@ -27,5 +27,26 @@ export const CONFIG = {
     maxFov: 75
   },
   skyColor: 0x6699cc,
-  groundColor: 0x3a7d3a
+  groundColor: 0x3a7d3a,
+  cars: {
+    sedan: 'Ford Mustang',
+    'sedan-sports': 'Nissan Skyline GT-R',
+    suv: 'Toyota RAV4',
+    'suv-luxury': 'BMW X5',
+    taxi: 'Chevrolet Suburban Taxi',
+    police: 'Ford Crown Victoria Police',
+    ambulance: 'Ford F-150 Ambulance',
+    race: 'Porsche 911 GT3',
+    'race-future': 'Tesla Cybertruck',
+    van: 'Mercedes-Benz Sprinter',
+    truck: 'Ford F-150',
+    'truck-flat': 'Chevrolet Silverado Flatbed',
+    delivery: 'Ford Transit Delivery',
+    'delivery-flat': 'Isuzu NPR Flatbed',
+    firetruck: 'Pierce Arrow Fire Truck',
+    'garbage-truck': 'Peterbilt 520 Garbage Truck',
+    tractor: 'John Deere 6155M',
+    'tractor-shovel': 'Caterpillar 420F Shovel',
+    'hatchback-sports': 'Honda Civic Type R'
+  }
 };

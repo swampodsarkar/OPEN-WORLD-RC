@@ -89,6 +89,8 @@ export class GameScene {
     this.sound.init();
     this.topSpeedRecord = 0;
     this.driftZoneScore = 0;
+    this.isCreative = !!(data && data.mode === 'creative');
+    this.selectedDisplayName = data?.displayName || CONFIG.cars[CAR_IDS[this.selectedIdx]] || CAR_IDS[this.selectedIdx];
     this.buildScene();
     this.bindKeys();
     this.bindMouse();
@@ -402,11 +404,19 @@ export class GameScene {
 
   spawnCar(scene) {
     const id = CAR_IDS[this.selectedIdx] || CAR_IDS[0];
+    const displayName = this.selectedDisplayName || CONFIG.cars[id] || id;
     const model = this.manager.models[id];
     if (!model) return;
     const startZ = -(ROAD_INN + ROAD_W * 0.3);
-    const car = new Car(scene, model, 0, startZ, id);
+    const car = new Car(scene, model, 0, startZ, displayName);
     this.currentCar = car;
+    if (this.isCreative) {
+      car.fuel = Infinity;
+      car.fuelConsumption = 0;
+      car.maxDamage = 999999;
+      car.damage = 0;
+      car.damageSpeedPenalty = 0;
+    }
     if (this.selectedColor) {
       const hex = parseInt(this.selectedColor.replace('#', ''), 16);
       car.mesh.traverse(c => { if (c.isMesh && c.material) {
@@ -457,6 +467,7 @@ export class GameScene {
   }
 
   checkBuildingCollision(car) {
+    if (this.isCreative) return;
     const cx = car.mesh.position.x, cz = car.mesh.position.z;
     for (const b of this.buildings) {
       const dx = cx - b.x, dz = cz - b.z;
@@ -842,7 +853,7 @@ export class GameScene {
     if (result.clamped) {
       car.mesh.position.x = result.x;
       car.mesh.position.z = result.z;
-      if (Math.abs(car.speed) > 15 && this.collisionCooldown <= 0) {
+      if (Math.abs(car.speed) > 15 && this.collisionCooldown <= 0 && !this.isCreative) {
         car.takeDamage(Math.abs(car.speed) * 0.08);
         this.collisionCooldown = 0.3;
         this.sound.playCollision(Math.min(1, Math.abs(car.speed) / 50));

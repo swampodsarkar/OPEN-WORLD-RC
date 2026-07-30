@@ -8,6 +8,8 @@ const CAR_IDS = [
   'tractor-shovel', 'hatchback-sports'
 ];
 
+const CAR_NAMES = CAR_IDS.map(id => CONFIG.cars[id] || id.replace(/-/g, ' '));
+
 const COLORS = [
   { name: 'Red', hex: '#cc2222' },
   { name: 'Blue', hex: '#2266cc' },
@@ -126,6 +128,8 @@ export class CarSelectScene {
   }
 
   renderUI() {
+    const model = this.manager.models[CAR_IDS[this.selectedIdx]];
+    const displayName = CAR_NAMES[this.selectedIdx] || CAR_IDS[this.selectedIdx].replace(/-/g, ' ');
     const d = document.createElement('div');
     d.id = 'car-select';
     d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center;z-index:500;pointer-events:none;background:linear-gradient(180deg, rgba(5,5,20,0.2) 0%, rgba(5,5,20,0.85) 40%, rgba(5,5,20,0.95) 100%)';
@@ -144,6 +148,8 @@ export class CarSelectScene {
         </div>
         <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:18px;animation:fadeUp 0.6s ease-out 0.4s both">
           <span id="sel-count" style="font-family:Orbitron,monospace;font-size:11px;color:#445;letter-spacing:2px">1 / ${CAR_IDS.length}</span>
+          <span style="color:#333">|</span>
+          <span id="sel-name" style="font-family:Rajdhani,sans-serif;font-size:13px;color:#889;font-weight:700;letter-spacing:1px">${displayName}</span>
         </div>
         <div style="margin-bottom:20px;animation:fadeUp 0.6s ease-out 0.5s both">
           <div style="font-family:Rajdhani,sans-serif;font-size:10px;color:#445;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px">Paint Color</div>
@@ -227,8 +233,10 @@ export class CarSelectScene {
     }
 
     const countEl = document.getElementById('sel-count');
+    const nameEl = document.getElementById('sel-name');
     const colorDot = document.getElementById('sel-preview-color');
     if (countEl) countEl.textContent = `${this.selectedIdx + 1} / ${CAR_IDS.length}`;
+    if (nameEl) nameEl.textContent = CAR_NAMES[this.selectedIdx] || CAR_IDS[this.selectedIdx].replace(/-/g, ' ');
     if (colorDot) colorDot.style.background = COLORS[this.selectedColor].hex;
   }
 
@@ -250,7 +258,12 @@ export class CarSelectScene {
     if (this.isLoading) return;
     this.isLoading = true;
     this.exit();
-    this.manager.start('loading', { carIdx: this.selectedIdx, color: COLORS[this.selectedColor].hex, charIdx: this.selectedChar });
+    this.manager.start('loading', {
+      carIdx: this.selectedIdx,
+      color: COLORS[this.selectedColor].hex,
+      charIdx: this.selectedChar,
+      displayName: CAR_NAMES[this.selectedIdx]
+    });
   }
 
   update(dt) {
