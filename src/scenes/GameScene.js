@@ -10,6 +10,13 @@ const CAR_IDS = [
   'tractor-shovel', 'hatchback-sports'
 ];
 
+const CHARACTERS = [
+  { name: 'Criminal', tex: 'assets/characters/criminalMaleA.png' },
+  { name: 'Skater M', tex: 'assets/characters/skaterMaleA.png' },
+  { name: 'Cyborg', tex: 'assets/characters/cyborgFemaleA.png' },
+  { name: 'Skater F', tex: 'assets/characters/skaterFemaleA.png' }
+];
+
 const TILE = 8;
 const ROAD_OUT = 300;
 const ROAD_INN = 220;
@@ -76,6 +83,7 @@ export class GameScene {
       this.selectedIdx = data.carIdx;
     }
     this.selectedColor = (data && data.color) || null;
+    this.selectedChar = (data && data.charIdx !== undefined) ? data.charIdx : 0;
     this.cameraAngle = 0;
     this.cameraOrbitDistance = CONFIG.camera.followDistance;
     this.cameraOrbitHeight = CONFIG.camera.followHeight;
@@ -90,6 +98,7 @@ export class GameScene {
     this.spawnCoins();
     this.initCheckpoints();
     if (this.multi) this.initMultiplayer(data);
+    this.spawnCharacter();
   }
 
   addObj(obj) { this.sceneObjects.push(obj); this.manager.scene.add(obj); }
@@ -363,6 +372,40 @@ export class GameScene {
     this.createSpeedLines();
   }
 
+  spawnCharacter() {
+    const char = CHARACTERS[this.selectedChar] || CHARACTERS[0];
+    const tex = new THREE.TextureLoader().load(char.tex);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const skinMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.0 });
+    const group = new THREE.Group();
+    const bodyMat = skinMat;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), bodyMat);
+    head.position.set(0, 1.1, 0);
+    group.add(head);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.55, 0.25), bodyMat);
+    torso.position.set(0, 0.7, 0);
+    group.add(torso);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.8 });
+    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), legMat);
+    lLeg.position.set(-0.1, 0.35, 0);
+    group.add(lLeg);
+    const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), legMat);
+    rLeg.position.set(0.1, 0.35, 0);
+    group.add(rLeg);
+    const armMat = bodyMat.clone();
+    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
+    lArm.position.set(-0.28, 0.85, 0);
+    group.add(lArm);
+    const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
+    rArm.position.set(0.28, 0.85, 0);
+    group.add(rArm);
+    group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    group.scale.set(2.5, 2.5, 2.5);
+    group.position.set(0, 0, 2.5);
+    this.character = group;
+    this.manager.scene.add(group);
+  }
+
   createHeadlights(scene) {
     this.headlights.forEach(h => scene.remove(h));
     this.headlights = [];
@@ -538,6 +581,7 @@ export class GameScene {
       <div style="position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:6px">
         <div class="hud-panel" style="padding:8px 14px">
           <div id="hud-car" style="font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#44aaff;letter-spacing:1px;text-transform:uppercase"></div>
+          <div id="hud-character" style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;color:#ffaa44;letter-spacing:0.5px;margin-top:2px"></div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
             <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
               <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><path d="M2 14L4 6h8l2 8" stroke="#ffcc00" stroke-width="1.5" stroke-linecap="round"/><circle cx="5.5" cy="14" r="1.5" fill="#ffcc00"/><circle cx="10.5" cy="14" r="1.5" fill="#ffcc00"/><path d="M6 6V3a1 1 0 011-1h2a1 1 0 011 1v3" stroke="#ffcc00" stroke-width="1.2"/></svg>
@@ -676,6 +720,7 @@ export class GameScene {
     document.body.appendChild(pm);
 
     this.hudEls.car = document.getElementById('hud-car');
+    this.hudEls.character = document.getElementById('hud-character');
     this.hudEls.speed = document.getElementById('hud-speed-val');
     this.hudEls.speedBar = document.getElementById('speedo-needle');
     this.hudEls.fuel = document.getElementById('hud-fuel');
@@ -732,7 +777,14 @@ export class GameScene {
   }
 
   syncHUD() {
-    if (this.hudEls.car && this.currentCar) this.hudEls.car.textContent = (this.multi ? '🌐 ' : '') + this.currentCar.name.toUpperCase();
+    if (this.hudEls.car && this.currentCar) {
+      const carName = (this.multi ? '🌐 ' : '') + this.currentCar.name.toUpperCase();
+      this.hudEls.car.textContent = carName;
+    }
+    if (this.hudEls.character) {
+      const char = CHARACTERS[this.selectedChar] || CHARACTERS[0];
+      this.hudEls.character.textContent = char.name;
+    }
   }
 
   update(dt) {
@@ -801,6 +853,15 @@ export class GameScene {
     );
     this.manager.camera.position.lerp(targetCamPos, 0.06);
     this.manager.camera.lookAt(this.cameraTarget);
+
+    if (this.character && this.currentCar) {
+      this.character.position.set(
+        this.currentCar.mesh.position.x,
+        0,
+        this.currentCar.mesh.position.z + 2.5
+      );
+      this.character.rotation.y = this.currentCar.mesh.rotation.y;
+    }
 
     this.applyScreenShake();
 
@@ -1238,6 +1299,7 @@ export class GameScene {
   exit() {
     this.unbindKeys();
     this.sound.stopEngine();
+    if (this.character) { this.manager.scene.remove(this.character); this.character = null; }
     if (this._touchControls) this._touchControls.remove();
     if (this._speedLineContainer) this._speedLineContainer.remove();
     if (this._minimapEl) this._minimapEl.remove();
