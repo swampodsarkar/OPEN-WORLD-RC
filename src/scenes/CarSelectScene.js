@@ -31,9 +31,22 @@ export class CarSelectScene {
 
   enter() {
     const scene = this.manager.scene;
-    scene.background = new THREE.Color(0x0a0a1a);
+    scene.background = new THREE.Color(0x080810);
+    scene.fog = new THREE.Fog(0x080810, 20, 40);
+    this.createGround();
     this.spawnPreview();
     this.renderUI();
+  }
+
+  createGround() {
+    const g = new THREE.Mesh(
+      new THREE.CircleGeometry(8, 64),
+      new THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.9 })
+    );
+    g.rotation.x = -Math.PI / 2;
+    g.position.y = 0;
+    g.name = '_select_ground';
+    this.manager.scene.add(g);
   }
 
   cloneMaterials(mesh) {
@@ -64,30 +77,35 @@ export class CarSelectScene {
 
     this.carPreview = model.clone();
     this.cloneMaterials(this.carPreview);
-    this.carPreview.scale.set(3, 3, 3);
-    this.carPreview.position.set(0, 1, 0);
-    this.carPreview.traverse(c => { if (c.isMesh) { c.castShadow = true; } });
+    this.carPreview.scale.set(2.2, 2.2, 2.2);
+    this.carPreview.position.set(0, 0.8, 0);
+    this.carPreview.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     this.applyColor(this.carPreview, COLORS[this.selectedColor].hex);
     scene.add(this.carPreview);
 
-    const amb = new THREE.AmbientLight(0x445566, 0.6);
+    const amb = new THREE.AmbientLight(0x556677, 1.2);
     amb.name = '_select_light_amb';
     scene.add(amb);
 
-    const sun = new THREE.DirectionalLight(0xffeedd, 2.0);
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
     sun.name = '_select_light_sun';
-    sun.position.set(10, 20, 10);
+    sun.position.set(8, 15, 8);
     sun.castShadow = true;
     scene.add(sun);
 
-    const fill = new THREE.DirectionalLight(0x4488ff, 0.4);
+    const fill = new THREE.DirectionalLight(0x6688ff, 0.6);
     fill.name = '_select_light_fill';
-    fill.position.set(-5, 10, -5);
+    fill.position.set(-8, 8, -8);
     scene.add(fill);
 
+    const rim = new THREE.DirectionalLight(0xff8844, 0.5);
+    rim.name = '_select_light_rim';
+    rim.position.set(0, 3, -10);
+    scene.add(rim);
+
     const cam = this.manager.camera;
-    cam.position.set(0, 5, 10);
-    cam.lookAt(0, 1, 0);
+    cam.position.set(0, 4, 12);
+    cam.lookAt(0, 0.5, 0);
   }
 
   applyColor(mesh, hex) {
@@ -95,7 +113,13 @@ export class CarSelectScene {
       if (c.isMesh && c.material) {
         const mats = Array.isArray(c.material) ? c.material : [c.material];
         mats.forEach(m => {
-          if (m.color) m.color.setHex(parseInt(hex.replace('#', ''), 16));
+          if (m.color) {
+            if (m.map) {
+              m.color.setHex(0xffffff);
+            } else {
+              m.color.setHex(parseInt(hex.replace('#', ''), 16));
+            }
+          }
           if (m.emissive) m.emissive.setHex(0x000000);
           m.needsUpdate = true;
         });
@@ -246,7 +270,9 @@ export class CarSelectScene {
       });
       this.carPreview = null;
     }
-    const names = ['_select_light_amb', '_select_light_sun', '_select_light_fill'];
+    const ground = this.manager.scene.getObjectByName('_select_ground');
+    if (ground) { this.manager.scene.remove(ground); ground.geometry?.dispose(); ground.material?.dispose(); }
+    const names = ['_select_light_amb', '_select_light_sun', '_select_light_fill', '_select_light_rim'];
     names.forEach(n => {
       const o = this.manager.scene.getObjectByName(n);
       if (o) this.manager.scene.remove(o);
@@ -254,5 +280,6 @@ export class CarSelectScene {
     document.removeEventListener('keydown', this._keyHandler);
     if (this.overlay) { this.overlay.remove(); this.overlay = null; }
     this.isLoading = false;
+    this.manager.scene.fog = null;
   }
 }
