@@ -18,6 +18,8 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+document.addEventListener('touchmove', (e) => { if (e.target === renderer.domElement) e.preventDefault(); }, { passive: false });
+
 const clock = new THREE.Clock();
 
 function animate() {

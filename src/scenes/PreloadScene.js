@@ -23,12 +23,26 @@ const cityBuildings = [
   'low-detail-building-wide-a', 'low-detail-building-wide-b'
 ];
 
+const LOADING_TIPS = [
+  'Tip: Press SPACE for boost!',
+  'Tip: Visit the repair shop to fix damage.',
+  'Tip: Collect coins to unlock new cars!',
+  'Tip: Drive through the fuel station to refuel.',
+  'Tip: Press V to zoom the camera.',
+  'Tip: ESC to pause the game.',
+  'Tip: Drift around corners for style points!',
+  'Tip: Watch your fuel gauge — don\'t run out!',
+  'Tip: Headlights turn on automatically at night.',
+  'Tip: Buildings cause damage — watch out!'
+];
+
 export class PreloadScene {
   constructor(manager) {
     this.manager = manager;
     this.totalModels = carList.length + cityBuildings.length;
     this.completed = 0;
     this.startTime = Date.now();
+    this.tipInterval = null;
   }
 
   enter() {
@@ -38,10 +52,15 @@ export class PreloadScene {
 
     this.loader = new GLTFLoader();
     this.barFill = document.getElementById('load-bar-fill');
+    this.barGlow = document.getElementById('load-bar-glow');
     this.statusText = document.getElementById('load-status');
+    this.tipText = document.getElementById('load-tip');
+    this.progressPct = document.getElementById('load-pct');
 
     this.manager.models = {};
     this.manager.cityModels = {};
+
+    this.startTips();
 
     const texLoader = new THREE.TextureLoader();
     this.manager.skyboxes = {};
@@ -77,6 +96,7 @@ export class PreloadScene {
           if (this.barFill && xhr.total) {
             const pct = Math.floor((this.completed + xhr.loaded / xhr.total) / this.totalModels * 100);
             this.barFill.style.width = Math.min(99, pct) + '%';
+            if (this.progressPct) this.progressPct.textContent = Math.min(99, pct) + '%';
           }
         },
         (err) => {
@@ -89,41 +109,79 @@ export class PreloadScene {
     });
   }
 
+  startTips() {
+    let idx = Math.floor(Math.random() * LOADING_TIPS.length);
+    const show = () => {
+      if (this.tipText) {
+        this.tipText.style.opacity = '0';
+        this.tipText.style.transform = 'translateY(10px)';
+        setTimeout(() => {
+          if (this.tipText) {
+            this.tipText.textContent = LOADING_TIPS[idx % LOADING_TIPS.length];
+            this.tipText.style.opacity = '1';
+            this.tipText.style.transform = 'translateY(0)';
+          }
+        }, 300);
+      }
+      idx++;
+    };
+    show();
+    this.tipInterval = setInterval(show, 3000);
+  }
+
   updateBar() {
-    if (this.barFill) this.barFill.style.width = Math.floor(this.completed / this.totalModels * 100) + '%';
-    if (this.statusText) this.statusText.textContent = `Loading... ${this.completed}/${this.totalModels}`;
+    const pct = Math.floor(this.completed / this.totalModels * 100);
+    if (this.barFill) this.barFill.style.width = pct + '%';
+    if (this.barGlow) this.barGlow.style.width = pct + '%';
+    if (this.progressPct) this.progressPct.textContent = pct + '%';
+    if (this.statusText) this.statusText.textContent = `Loading assets... ${this.completed}/${this.totalModels}`;
   }
 
   done() {
+    if (this.tipInterval) { clearInterval(this.tipInterval); this.tipInterval = null; }
     const wait = Math.max(0, 800 - (Date.now() - this.startTime));
     setTimeout(() => {
-      this.manager.start('menu');
+      if (this.barFill) this.barFill.style.width = '100%';
+      if (this.barGlow) this.barGlow.style.width = '100%';
+      if (this.progressPct) this.progressPct.textContent = '100%';
+      setTimeout(() => {
+        this.manager.start('menu');
+      }, 400);
     }, wait);
   }
 
   createOverlay() {
     const d = document.createElement('div');
     d.id = 'overlay';
-    d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0a1a;z-index:1000;flex-direction:column';
+    d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a0a1a,#111133);z-index:1000;flex-direction:column';
     document.body.appendChild(d);
     return d;
   }
 
   getLoadingHTML() {
     return `
-      <div style="text-align:center;color:#fff;font-family:Arial">
-        <h1 style="font-size:42px;color:#44aaff;margin:0">OPEN WORLD</h1>
-        <h2 style="font-size:56px;color:#ff6b35;margin:0 0 40px">DRIVING</h2>
-        <div style="width:300px;height:20px;background:#333;border-radius:10px;overflow:hidden;margin:0 auto">
-          <div id="load-bar-fill" style="height:100%;width:0%;background:#44aaff;border-radius:10px;transition:width 0.15s"></div>
+      <div style="text-align:center;color:#fff">
+        <div style="font-family:Orbitron,monospace;font-size:22px;color:#44aaff;letter-spacing:6px;text-transform:uppercase;margin-bottom:4px">Open World</div>
+        <div style="font-family:Orbitron,monospace;font-size:52px;font-weight:900;background:linear-gradient(135deg,#ff6b35,#ffaa44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:40px">DRIVING</div>
+        <div style="position:relative;width:320px;height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin:0 auto">
+          <div id="load-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#44aaff,#2266cc);border-radius:4px;transition:width 0.2s ease"></div>
+          <div id="load-bar-glow" style="position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,transparent,rgba(68,170,255,0.4),transparent);border-radius:4px;filter:blur(4px);transition:width 0.2s ease"></div>
         </div>
-        <p id="load-status" style="margin-top:12px;color:#888;font-size:14px">Loading assets...</p>
+        <div style="display:flex;justify-content:space-between;width:320px;margin:6px auto 0">
+          <span id="load-status" style="color:#888;font-family:Rajdhani,sans-serif;font-size:13px">Loading assets...</span>
+          <span id="load-pct" style="color:#44aaff;font-family:Orbitron,monospace;font-size:13px;font-weight:700">0%</span>
+        </div>
+        <div id="load-tip" style="margin-top:30px;color:#555;font-family:Rajdhani,sans-serif;font-size:14px;transition:all 0.3s ease;letter-spacing:1px">Loading...</div>
       </div>
     `;
   }
 
   exit() {
     const div = document.getElementById('overlay');
-    if (div) div.style.display = 'none';
+    if (div) {
+      div.style.opacity = '0';
+      div.style.transition = 'opacity 0.4s ease';
+      setTimeout(() => div.style.display = 'none', 400);
+    }
   }
 }

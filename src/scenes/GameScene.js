@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { Car } from '../entities/Car.js';
+import { SoundService } from '../services/SoundService.js';
 
 const CAR_IDS = [
   'sedan', 'sedan-sports', 'suv', 'suv-luxury', 'taxi', 'police',
@@ -43,6 +44,25 @@ export class GameScene {
     this.hemiLight = null;
     this.headlights = [];
     this.skyDome = null;
+    this.sound = new SoundService();
+    this.coins = [];
+    this.coinCount = 0;
+    this.driftScore = 0;
+    this.driftActive = false;
+    this.driftCooldown = 0;
+    this.screenShake = { intensity: 0, duration: 0 };
+    this.particles = { exhaust: [], dust: [] };
+    this.speedLines = [];
+    this.nitrousFlame = null;
+    this.touchInput = { forward: false, backward: false, left: false, right: false, boost: false };
+    this.minimapCtx = null;
+    this.timer = 0;
+    this.bestTime = parseFloat(localStorage.getItem('bestTime') || '0');
+    this.lapCount = 0;
+    this.checkpointIdx = 0;
+    this.checkpoints = [];
+    this._touchStartX = 0;
+    this._touchStartY = 0;
   }
 
   enter(data) {
@@ -54,9 +74,15 @@ export class GameScene {
     } else if (data && data.carIdx !== undefined) {
       this.selectedIdx = data.carIdx;
     }
+    this.selectedColor = (data && data.color) || null;
     this.buildScene();
     this.bindKeys();
+    this.bindTouch();
     this.createHUD();
+    this.createMinimap();
+    this.spawnCoins();
+    this.initCheckpoints();
+    this.sound.init();
     if (this.multi) this.initMultiplayer(data);
   }
 
@@ -321,10 +347,22 @@ export class GameScene {
     const startZ = -(ROAD_INN + ROAD_W * 0.3);
     const car = new Car(scene, model, 0, startZ, id);
     this.currentCar = car;
+    if (this.selectedColor) {
+      const hex = parseInt(this.selectedColor.replace('#', ''), 16);
+      car.mesh.traverse(c => { if (c.isMesh && c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach(m => { if (m.color) m.color.setHex(hex); });
+      }});
+    }
     this.prevPos = { x: 0, z: startZ };
     car.occupy();
     this.syncHUD();
     this.createHeadlights(scene);
+    this.sound.startEngine();
+    this.sound.startTire();
+    this.createExhaust();
+    this.createNitrousFlame();
+    this.createSpeedLines();
   }
 
   createHeadlights(scene) {
@@ -485,6 +523,10 @@ export class GameScene {
               <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#44ff44"><span id="hud-damage">0</span><span style="font-size:9px;color:#226622">%</span></span>
               <div class="stat-bar" style="width:50px"><div id="hud-damage-bar" class="stat-fill" style="width:0%;background:#44ff44"></div></div>
             </div>
+            <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
+              <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#ffcc00" stroke-width="1.5"/><path d="M8 4v5" stroke="#ffcc00" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11" r="1" fill="#ffcc00"/></svg>
+              <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#ffcc00"><span id="hud-coins">0</span></span>
+            </div>
           </div>
           <div id="hud-zone" style="margin-top:4px;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:600;color:#88ff88;letter-spacing:1px;text-transform:uppercase;min-height:14px"></div>
         </div>
@@ -497,7 +539,13 @@ export class GameScene {
             <span id="hud-time-icon" style="margin-left:4px">☀️</span>
           </div>
         </div>
+        <div class="hud-panel" style="padding:6px 12px">
+          <div style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#44ff44"><span id="hud-timer">0:00.00</span></div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:9px;color:#888"><span id="hud-laps">0</span> laps &middot; <span id="hud-best">BEST: --</span></div>
+        </div>
         ${this.multi ? `<div class="hud-panel" style="padding:6px 12px"><div id="hud-players" style="font-family:'Rajdhani',sans-serif;font-size:10px;color:#888"></div></div>` : ''}
+        <button id="hud-share" style="padding:4px 10px;font-size:10px;background:rgba(255,255,255,0.08);color:#888;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;pointer-events:auto">📤 Share</button>
+        <div id="share-toast" style="font-family:'Rajdhani',sans-serif;font-size:10px;color:#44ff44;opacity:0;transition:opacity 0.3s">Link copied!</div>
       </div>
 
       <div style="position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px">
@@ -564,6 +612,13 @@ export class GameScene {
     this.hudEls.timeIcon = document.getElementById('hud-time-icon');
     this.hudEls.players = document.getElementById('hud-players');
     this.hudEls.dmgFlash = document.body;
+    this.hudEls.coins = document.getElementById('hud-coins');
+    this.hudEls.timer = document.getElementById('hud-timer');
+    this.hudEls.laps = document.getElementById('hud-laps');
+    this.hudEls.best = document.getElementById('hud-best');
+
+    const shareBtn = document.getElementById('hud-share');
+    if (shareBtn) shareBtn.onclick = () => this.shareGame();
 
     this.showCountdown();
   }
@@ -602,14 +657,22 @@ export class GameScene {
   update(dt) {
     if (this.paused || !this.currentCar) return;
 
+    this.sound.resume();
     this.updateLighting(dt);
 
     const isNight = this.dayTime >= 20 || this.dayTime < 5;
     this.headlights.forEach(l => l.intensity = isNight ? 8 : 0);
 
     const car = this.currentCar;
-    car.boost = this.input.boost;
-    car.drive(this.input, dt);
+    const mergedInput = {
+      forward: this.input.forward || this.touchInput.forward,
+      backward: this.input.backward || this.touchInput.backward,
+      left: this.input.left || this.touchInput.left,
+      right: this.input.right || this.touchInput.right,
+      boost: this.input.boost || this.touchInput.boost
+    };
+    car.boost = mergedInput.boost;
+    car.drive(mergedInput, dt);
 
     const result = this.clampToRoad(car.mesh.position);
     if (result.clamped) {
@@ -618,6 +681,8 @@ export class GameScene {
       if (Math.abs(car.speed) > 15 && this.collisionCooldown <= 0) {
         car.takeDamage(Math.abs(car.speed) * 0.08);
         this.collisionCooldown = 0.3;
+        this.sound.playCollision(Math.min(1, Math.abs(car.speed) / 50));
+        this.shakeScreen(0.3, 0.15);
       }
     }
 
@@ -651,13 +716,27 @@ export class GameScene {
     cam.position.lerp(target, CONFIG.camera.lerpSpeed);
     cam.lookAt(car.mesh.position.x, 1, car.mesh.position.z);
 
+    this.applyScreenShake();
+
+    this.coinUpdate(dt);
+    this.driftUpdate(dt);
+    this.updateExhaust(dt);
+    this.updateNitrous(dt);
+    this.timeTrialUpdate(dt);
+    this.drawMinimap();
+
     const maxSpd = car.boost ? CONFIG.car.maxSpeed * CONFIG.car.boostMultiplier : CONFIG.car.maxSpeed;
     const spd = Math.round(Math.abs(car.speed) * 3.6);
     const pct = Math.min(100, (Math.abs(car.speed) / maxSpd) * 100);
+
+    this.sound.startEngine();
+    this.sound.updateEngine(Math.abs(car.speed), maxSpd);
+    this.updateSpeedLines(Math.abs(car.speed), maxSpd);
+
     if (this.hudEls.speed) this.hudEls.speed.textContent = spd;
     if (this.hudEls.speedBar) {
-      const angle = -120 + (pct / 100) * 240;
-      this.hudEls.speedBar.style.transform = `rotate(${angle}deg)`;
+      const sAngle = -120 + (pct / 100) * 240;
+      this.hudEls.speedBar.style.transform = `rotate(${sAngle}deg)`;
     }
     if (this.hudEls.fuel) {
       const f = Math.round(car.fuel);
@@ -691,8 +770,393 @@ export class GameScene {
     if (this.hudEls.players) this.hudEls.players.textContent = '👥 ' + Object.keys(this.ghostCars).length + ' player(s)';
   }
 
+  bindTouch() {
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isMobile) return;
+    const c = (id) => document.getElementById(id);
+
+    const tc = document.createElement('div');
+    tc.id = 'touch-controls';
+    tc.style.cssText = 'position:fixed;inset:0;z-index:90;touch-action:none;display:flex;pointer-events:none';
+    tc.innerHTML = `
+      <div id="tc-left" style="flex:1;pointer-events:auto;position:relative">
+        <div id="tc-pad" style="position:absolute;bottom:60px;left:30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.12)"></div>
+      </div>
+      <div id="tc-right" style="flex:1;pointer-events:auto;position:relative">
+        <div id="tc-gas" style="position:absolute;bottom:60px;right:70px;width:64px;height:64px;border-radius:50%;background:rgba(68,170,255,0.2);border:2px solid rgba(68,170,255,0.3);display:flex;align-items:center;justify-content:center;color:#44aaff;font-size:22px;font-weight:bold">▲</div>
+        <div id="tc-boost" style="position:absolute;bottom:60px;right:10px;width:50px;height:50px;border-radius:50%;background:rgba(255,107,53,0.2);border:2px solid rgba(255,107,53,0.3);display:flex;align-items:center;justify-content:center;color:#ff6b35;font-size:14px;font-weight:bold">BOOST</div>
+        <div id="tc-brake" style="position:absolute;bottom:140px;right:70px;width:64px;height:64px;border-radius:50%;background:rgba(255,50,50,0.2);border:2px solid rgba(255,50,50,0.3);display:flex;align-items:center;justify-content:center;color:#ff4444;font-size:22px;font-weight:bold">▼</div>
+      </div>
+    `;
+    document.body.appendChild(tc);
+
+    const touchState = { left: false, right: false, gas: false, brake: false, boost: false };
+    const setTouch = (key, val) => {
+      touchState[key] = val;
+      this.touchInput.forward = touchState.gas;
+      this.touchInput.backward = touchState.brake;
+      this.touchInput.left = touchState.left;
+      this.touchInput.right = touchState.right;
+      this.touchInput.boost = touchState.boost;
+    };
+
+    const bindArea = (id, key) => {
+      const el = c(id);
+      if (!el) return;
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); setTouch(key, true); }, { passive: false });
+      el.addEventListener('touchend', (e) => { e.preventDefault(); setTouch(key, false); }, { passive: false });
+      el.addEventListener('touchcancel', (e) => { setTouch(key, false); });
+    };
+    bindArea('tc-gas', 'gas');
+    bindArea('tc-brake', 'brake');
+    bindArea('tc-boost', 'boost');
+
+    c('tc-pad').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      const r = c('tc-pad').getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = t.clientX - cx, dy = t.clientY - cy;
+      setTouch('left', dx < -10);
+      setTouch('right', dx > 10);
+      this._touchId = t.identifier;
+    }, { passive: false });
+    c('tc-pad').addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      let t = null;
+      for (let i = 0; i < e.touches.length; i++) { if (e.touches[i].identifier === this._touchId) { t = e.touches[i]; break; } }
+      if (!t) return;
+      const r = c('tc-pad').getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const dx = t.clientX - cx;
+      setTouch('left', dx < -10);
+      setTouch('right', dx > 10);
+    }, { passive: false });
+    c('tc-pad').addEventListener('touchend', (e) => { setTouch('left', false); setTouch('right', false); });
+    c('tc-pad').addEventListener('touchcancel', (e) => { setTouch('left', false); setTouch('right', false); });
+
+    this._touchControls = tc;
+  }
+
+  initCheckpoints() {
+    const inn = ROAD_INN, rw = ROAD_W;
+    const offsets = [-(inn + rw / 2), 0, (inn + rw / 2), 0];
+    const offz = [0, -(inn + rw / 2), 0, (inn + rw / 2)];
+    for (let i = 0; i < 4; i++) {
+      this.checkpoints.push({ x: offsets[i], z: offz[i], r: 15, passed: false });
+    }
+  }
+
+  spawnCoins() {
+    const inn = ROAD_INN, out = ROAD_OUT;
+    for (let i = 0; i < 30; i++) {
+      const side = Math.floor(Math.random() * 4);
+      let x, z;
+      const halfRw = ROAD_W / 2 - 4;
+      if (side === 0) { x = -(inn + ROAD_W / 2) + (Math.random() - 0.5) * ROAD_W; z = -(inn + halfRw); }
+      else if (side === 1) { x = (inn + ROAD_W / 2) + (Math.random() - 0.5) * ROAD_W; z = (inn + halfRw); }
+      else if (side === 2) { x = -(inn + halfRw); z = -(inn + ROAD_W / 2) + (Math.random() - 0.5) * ROAD_W; }
+      else { x = (inn + halfRw); z = (inn + ROAD_W / 2) + (Math.random() - 0.5) * ROAD_W; }
+      const coin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.4, 0.4, 0.1, 8),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00, emissive: 0xffaa00, emissiveIntensity: 0.3, metalness: 0.8, roughness: 0.2 })
+      );
+      coin.position.set(x, 0.3, z);
+      coin.rotation.x = Math.PI / 2;
+      coin.userData.collected = false;
+      this.manager.scene.add(coin);
+      this.sceneObjects.push(coin);
+      this.coins.push({ mesh: coin, x, z, collected: false });
+    }
+  }
+
+  createMinimap() {
+    const mm = document.createElement('canvas');
+    mm.id = 'minimap';
+    mm.width = 140;
+    mm.height = 140;
+    mm.style.cssText = 'position:fixed;bottom:90px;right:12px;z-index:101;border-radius:50%;border:2px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.5)';
+    document.body.appendChild(mm);
+    this.minimapCtx = mm.getContext('2d');
+    this._minimapEl = mm;
+  }
+
+  drawMinimap() {
+    if (!this.minimapCtx || !this.currentCar) return;
+    const ctx = this.minimapCtx;
+    const w = 140, h = 140, cx = w / 2, cy = h / 2;
+    const scale = 0.18;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 68, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - ROAD_OUT * scale, cy - ROAD_OUT * scale, ROAD_OUT * 2 * scale, ROAD_OUT * 2 * scale);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.strokeRect(cx - ROAD_INN * scale, cy - ROAD_INN * scale, ROAD_INN * 2 * scale, ROAD_INN * 2 * scale);
+
+    this.buildings.forEach(b => {
+      if (b.r < 6) return;
+      ctx.fillStyle = 'rgba(255,200,100,0.4)';
+      ctx.fillRect(cx + b.x * scale - 1, cy + b.z * scale - 1, 3, 3);
+    });
+
+    this.coins.forEach(c => {
+      if (c.collected) return;
+      ctx.fillStyle = '#ffcc00';
+      ctx.beginPath();
+      ctx.arc(cx + c.x * scale, cy + c.z * scale, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    const px = this.currentCar.mesh.position.x * scale;
+    const pz = this.currentCar.mesh.position.z * scale;
+    ctx.fillStyle = '#44aaff';
+    ctx.beginPath();
+    ctx.arc(cx + px, cy + pz, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const angle = this.currentCar.mesh.rotation.y;
+    ctx.strokeStyle = '#44aaff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + px, cy + pz);
+    ctx.lineTo(cx + px + Math.sin(angle) * 8, cy + pz + Math.cos(angle) * 8);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', cx, 10);
+  }
+
+  coinUpdate(dt) {
+    if (!this.currentCar) return;
+    const cx = this.currentCar.mesh.position.x, cz = this.currentCar.mesh.position.z;
+    this.coins.forEach(c => {
+      if (c.collected) return;
+      c.mesh.rotation.z += dt * 3;
+      const d = Math.sqrt((cx - c.x) ** 2 + (cz - c.z) ** 2);
+      if (d < 3) {
+        c.collected = true;
+        c.mesh.visible = false;
+        this.coinCount++;
+        this.sound.playCoin();
+        if (this.hudEls.coins) this.hudEls.coins.textContent = this.coinCount;
+      }
+    });
+  }
+
+  driftUpdate(dt) {
+    if (!this.currentCar) return;
+    const car = this.currentCar;
+    const speed = Math.abs(car.speed);
+    const turning = this.input.left || this.input.right;
+    const drifting = speed > 15 && turning;
+    this.driftCooldown = Math.max(0, this.driftCooldown - dt);
+
+    if (drifting && !this.driftActive && this.driftCooldown <= 0) {
+      this.driftActive = true;
+      this.driftScore += Math.round(speed * 0.5);
+      this.sound.playDrift();
+      this.showDriftFlash();
+      this.driftCooldown = 0.5;
+    } else if (!drifting) {
+      this.driftActive = false;
+    }
+
+    this.sound.updateTire(drifting ? Math.min(1, (speed - 15) / 30) : 0);
+    if (!drifting) this.sound.stopTire();
+  }
+
+  showDriftFlash() {
+    const el = document.getElementById('drift-flash');
+    if (el) { el.remove(); }
+    const d = document.createElement('div');
+    d.id = 'drift-flash';
+    d.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:160;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:48px;color:#ff6b35;text-shadow:0 0 30px rgba(255,107,53,0.6);opacity:1;transition:opacity 0.4s ease`;
+    d.textContent = 'DRIFT!';
+    document.body.appendChild(d);
+    document.getElementById('hud-coins').textContent = this.coinCount;
+    setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 500); }, 200);
+  }
+
+  shakeScreen(intensity, duration) {
+    this.screenShake = { intensity, duration };
+  }
+
+  applyScreenShake() {
+    if (this.screenShake.duration <= 0) return;
+    const shake = this.screenShake;
+    const dx = (Math.random() - 0.5) * shake.intensity;
+    const dy = (Math.random() - 0.5) * shake.intensity;
+    this.manager.camera.position.x += dx;
+    this.manager.camera.position.y += dy;
+    shake.duration -= 0.016;
+  }
+
+  createSpeedLines() {
+    this._speedLineContainer = document.createElement('div');
+    this._speedLineContainer.id = 'speed-lines';
+    this._speedLineContainer.style.cssText = 'position:fixed;inset:0;z-index:85;pointer-events:none;overflow:hidden';
+    document.body.appendChild(this._speedLineContainer);
+    for (let i = 0; i < 15; i++) {
+      const line = document.createElement('div');
+      line.style.cssText = `position:absolute;width:2px;height:${20 + Math.random() * 40}px;background:linear-gradient(to bottom,transparent,rgba(255,255,255,${0.1 + Math.random() * 0.15}));left:${Math.random() * 100}%;top:${Math.random() * 100}%;opacity:0;transition:opacity 0.1s`;
+      this._speedLineContainer.appendChild(line);
+      this.speedLines.push(line);
+    }
+  }
+
+  updateSpeedLines(speed, maxSpeed) {
+    const pct = Math.min(1, Math.abs(speed) / maxSpeed);
+    const show = pct > 0.5;
+    this.speedLines.forEach((line, i) => {
+      line.style.opacity = show ? String((pct - 0.5) * 2 * (0.3 + (i / this.speedLines.length) * 0.3)) : '0';
+      if (show) {
+        const top = parseFloat(line.style.top) || 0;
+        line.style.top = (top + pct * 8) % 100 + '%';
+      }
+    });
+  }
+
+  createExhaust() {
+    this._exhaustParticles = [];
+    for (let i = 0; i < 20; i++) {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 4, 4),
+        new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0 })
+      );
+      this.manager.scene.add(p);
+      this.sceneObjects.push(p);
+      this._exhaustParticles.push({ mesh: p, life: 0, maxLife: 0 });
+    }
+  }
+
+  updateExhaust(dt) {
+    if (!this.currentCar) return;
+    const car = this.currentCar;
+    const speed = Math.abs(car.speed);
+    const show = speed > 5;
+    const carPos = car.mesh.position;
+    const angle = car.mesh.rotation.y;
+    const backX = carPos.x - Math.sin(angle) * 1.5;
+    const backZ = carPos.z - Math.cos(angle) * 1.5;
+
+    this._exhaustParticles.forEach(p => {
+      if (show && p.life <= 0) {
+        p.mesh.position.set(backX + (Math.random() - 0.5) * 0.2, 0.1 + Math.random() * 0.1, backZ + (Math.random() - 0.5) * 0.2);
+        p.life = 0.3 + Math.random() * 0.4;
+        p.maxLife = p.life;
+        p.mesh.material.opacity = 0.3;
+        p.mesh.scale.set(1, 1, 1);
+      }
+      if (p.life > 0) {
+        p.life -= dt;
+        const t = p.life / p.maxLife;
+        p.mesh.material.opacity = t * 0.3;
+        p.mesh.position.y += dt * 0.1;
+        p.mesh.scale.setScalar(1 + (1 - t) * 2);
+        if (show && p.life <= 0 && Math.random() < 0.1) {
+          p.mesh.position.set(backX + (Math.random() - 0.5) * 0.2, 0.1, backZ + (Math.random() - 0.5) * 0.2);
+          p.life = 0.3 + Math.random() * 0.4;
+          p.maxLife = p.life;
+          p.mesh.material.opacity = 0.3;
+        }
+      }
+    });
+  }
+
+  createNitrousFlame() {
+    const g = new THREE.BoxGeometry(0.4, 0.3, 0.8);
+    const m = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0 });
+    this.nitrousFlame = new THREE.Mesh(g, m);
+    this.manager.scene.add(this.nitrousFlame);
+    this.sceneObjects.push(this.nitrousFlame);
+  }
+
+  updateNitrous(dt) {
+    if (!this.nitrousFlame || !this.currentCar) return;
+    const car = this.currentCar;
+    const angle = car.mesh.rotation.y;
+    const boost = this.input.boost || this.touchInput.boost;
+    if (boost && Math.abs(car.speed) > 5) {
+      this.nitrousFlame.position.set(
+        car.mesh.position.x - Math.sin(angle) * 1.8,
+        0.1,
+        car.mesh.position.z - Math.cos(angle) * 1.8
+      );
+      this.nitrousFlame.rotation.y = angle;
+      this.nitrousFlame.material.opacity = 0.4 + Math.random() * 0.3;
+      this.nitrousFlame.scale.set(1, 1, 0.8 + Math.random() * 0.4);
+      this.nitrousFlame.material.color.setHex(Math.random() < 0.5 ? 0xff4400 : 0xffaa00);
+    } else {
+      this.nitrousFlame.material.opacity = 0;
+    }
+  }
+
+  timeTrialUpdate(dt) {
+    if (!this.currentCar || this.paused) return;
+    this.timer += dt;
+    const carPos = this.currentCar.mesh.position;
+    if (this.hudEls.timer) {
+      const mins = Math.floor(this.timer / 60);
+      const secs = Math.floor(this.timer % 60);
+      const ms = Math.floor((this.timer % 1) * 100);
+      this.hudEls.timer.textContent = `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+    }
+
+    const chk = this.checkpoints[this.checkpointIdx];
+    if (chk) {
+      const d = Math.sqrt((carPos.x - chk.x) ** 2 + (carPos.z - chk.z) ** 2);
+      if (d < chk.r && !chk.passed) {
+        chk.passed = true;
+        this.checkpointIdx++;
+        if (this.checkpointIdx >= this.checkpoints.length) {
+          if (this.bestTime === 0 || this.timer < this.bestTime) {
+            this.bestTime = this.timer;
+            localStorage.setItem('bestTime', String(this.bestTime));
+          }
+          this.lapCount++;
+          this.checkpoints.forEach(c => c.passed = false);
+          this.checkpointIdx = 0;
+          this.timer = 0;
+          if (this.hudEls.laps) this.hudEls.laps.textContent = this.lapCount;
+          if (this.hudEls.best) {
+            const bt = this.bestTime;
+            const m = Math.floor(bt / 60), s = Math.floor(bt % 60), ms = Math.floor((bt % 1) * 100);
+            this.hudEls.best.textContent = `BEST: ${m}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+          }
+        }
+      }
+    }
+  }
+
+  shareGame() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: 'Open World Drive', text: 'Race with me!', url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        const el = document.getElementById('share-toast');
+        if (el) { el.style.opacity = '1'; setTimeout(() => el.style.opacity = '0', 1500); }
+      }).catch(() => {});
+    }
+  }
+
   exit() {
     this.unbindKeys();
+    this.sound.stopEngine();
+    if (this._touchControls) this._touchControls.remove();
+    if (this._speedLineContainer) this._speedLineContainer.remove();
+    if (this._minimapEl) this._minimapEl.remove();
     if (this.syncInterval) { clearInterval(this.syncInterval); this.syncInterval = null; }
     if (this.posListener) { import('../services/FirebaseService.js').then(({ db, ref, off }) => off(ref(db, `rooms/${this.roomId}/players`), this.posListener)); }
     if (this.multi && this.roomId && this.playerId) {
@@ -709,11 +1173,13 @@ export class GameScene {
     for (const obj of this.sceneObjects) this.manager.scene.remove(obj);
     this.sceneObjects = [];
     this.buildings = [];
+    this.coins = [];
     this.manager.scene.background = null;
     this.manager.scene.fog = null;
     const hud = document.getElementById('hud'); if (hud) hud.remove();
     const pm = document.getElementById('pause-menu'); if (pm) pm.remove();
     const ct = document.getElementById('countdown'); if (ct) ct.remove();
+    const df = document.getElementById('drift-flash'); if (df) df.remove();
     if (this._hudStyle) this._hudStyle.remove();
   }
 }

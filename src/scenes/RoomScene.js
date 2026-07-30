@@ -39,7 +39,8 @@ export class RoomScene {
         <div id="room-list" style="display:flex;flex-direction:column;gap:8px"></div>
         <p id="room-status" style="color:#555;font-size:13px;text-align:center;margin-top:20px">Loading rooms...</p>
       </div>
-      <div style="padding:12px;text-align:center;border-top:1px solid #222">
+      <div style="padding:12px;text-align:center;border-top:1px solid #222;display:flex;gap:12px;justify-content:center">
+        <button id="room-share-btn" style="padding:8px 24px;font-size:14px;background:#222;color:#44aaff;border:1px solid rgba(68,170,255,0.2);border-radius:6px;cursor:pointer">📤 Share Link</button>
         <button id="room-back-btn" style="padding:8px 24px;font-size:14px;background:#333;color:#aaa;border:none;border-radius:6px;cursor:pointer">← BACK TO MENU</button>
       </div>
     `;
@@ -49,6 +50,12 @@ export class RoomScene {
     document.getElementById('create-room-btn').onclick = () => this.createRoom();
     document.getElementById('room-back-btn').onclick = () => { this.exit(); this.manager.start('menu'); };
     document.getElementById('room-name-input').onkeydown = (e) => { if (e.key === 'Enter') this.createRoom(); };
+    const shareBtn = document.getElementById('room-share-btn');
+    if (shareBtn) shareBtn.onclick = () => {
+      const url = window.location.href;
+      if (navigator.share) { navigator.share({ title: 'Open World Drive', text: 'Race with me!', url }).catch(() => {}); }
+      else { navigator.clipboard.writeText(url).then(() => { shareBtn.textContent = '✓ Copied!'; setTimeout(() => shareBtn.textContent = '📤 Share Link', 2000); }).catch(() => {}); }
+    };
   }
 
   loadRooms() {
