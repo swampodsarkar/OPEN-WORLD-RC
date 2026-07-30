@@ -43,9 +43,23 @@ export class PreloadScene {
     this.completed = 0;
     this.startTime = Date.now();
     this.tipInterval = null;
+    this.mode = 'initial';
+    this.worldData = null;
   }
 
-  enter() {
+  enter(data) {
+    if (data && data.mode === 'world') {
+      this.mode = 'world';
+      this.worldData = data;
+      this.showWorldLoading();
+      return;
+    }
+
+    this.mode = 'initial';
+    this.worldData = null;
+    this.completed = 0;
+    this.startTime = Date.now();
+
     const div = document.getElementById('overlay') || this.createOverlay();
     div.innerHTML = this.getLoadingHTML();
     div.style.display = 'flex';
@@ -75,38 +89,99 @@ export class PreloadScene {
       });
     });
 
-    const allItems = [
-      ...carList.map(n => ({ type: 'car', path: `assets/cars/${n}.glb`, name: n })),
-      ...cityBuildings.map(n => ({ type: 'building', path: `assets/city/buildings/${n}.glb`, name: n }))
+    const carItems = carList.map(n => ({ type: 'car', path: `assets/cars/${n}.glb`, name: n }));
+    const buildingItems = cityBuildings.map(n => ({ type: 'building', path: `assets/city/buildings/${n}.glb`, name: n }));
+
+    const allItems = [...carItems, ...buildingItems];
+    const BATCH_SIZE = 6;
+    let loaded = 0;
+
+    const loadBatch = () => {
+      const batch = allItems.slice(loaded, loaded + BATCH_SIZE);
+      if (batch.length === 0) return;
+      loaded += batch.length;
+
+      batch.forEach(item => {
+        this.loader.load(
+          item.path,
+          (gltf) => {
+            const group = gltf.scene;
+            group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            if (item.type === 'car') this.manager.models[item.name] = group;
+            else if (item.type === 'building') this.manager.cityModels[item.name] = group;
+            this.completed++;
+            this.updateBar();
+            if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();
+          },
+          (xhr) => {
+            if (this.barFill && xhr.total) {
+              const pct = Math.floor((this.completed + xhr.loaded / xhr.total) / this.totalModels * 100);
+              this.barFill.style.width = Math.min(99, pct) + '%';
+              if (this.progressPct) this.progressPct.textContent = Math.min(99, pct) + '%';
+            }
+          },
+          (err) => {
+            console.warn(`Fallback for ${item.name}`);
+            this.completed++;
+            this.updateBar();
+            if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();
+          }
+        );
+      });
+
+      if (loaded < allItems.length) {
+        setTimeout(loadBatch, 50);
+      }
+    };
+
+    loadBatch();
+  }
+
+  showWorldLoading() {
+    const div = document.getElementById('overlay') || this.createOverlay();
+    div.innerHTML = this.getWorldLoadingHTML();
+    div.style.display = 'flex';
+
+    this.barFill = document.getElementById('load-bar-fill');
+    this.barGlow = document.getElementById('load-bar-glow');
+    this.statusText = document.getElementById('load-status');
+    this.tipText = document.getElementById('load-tip');
+    this.progressPct = document.getElementById('load-pct');
+
+    this.updateBar();
+
+    const steps = [
+      { pct: 10, text: 'Loading your vehicle...' },
+      { pct: 30, text: 'Building the world...' },
+      { pct: 55, text: 'Placing buildings...' },
+      { pct: 75, text: 'Setting up the track...' },
+      { pct: 90, text: 'Almost ready...' },
     ];
 
-    allItems.forEach(item => {
-      this.loader.load(
-        item.path,
-        (gltf) => {
-          const group = gltf.scene;
-          group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-          if (item.type === 'car') this.manager.models[item.name] = group;
-          else if (item.type === 'building') this.manager.cityModels[item.name] = group;
-          this.completed++;
-          this.updateBar();
-          if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();
-        },
-        (xhr) => {
-          if (this.barFill && xhr.total) {
-            const pct = Math.floor((this.completed + xhr.loaded / xhr.total) / this.totalModels * 100);
-            this.barFill.style.width = Math.min(99, pct) + '%';
-            if (this.progressPct) this.progressPct.textContent = Math.min(99, pct) + '%';
-          }
-        },
-        (err) => {
-          console.warn(`Fallback for ${item.name}`);
-          this.completed++;
-          this.updateBar();
-          if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();
-        }
-      );
-    });
+    let stepIdx = 0;
+    const totalDuration = 1600;
+
+    const runStep = () => {
+      if (stepIdx >= steps.length) {
+        if (this.barFill) this.barFill.style.width = '100%';
+        if (this.barGlow) this.barGlow.style.width = '100%';
+        if (this.progressPct) this.progressPct.textContent = '100%';
+        if (this.statusText) this.statusText.textContent = 'Entering world...';
+        setTimeout(() => {
+          this.manager.start('game', this.worldData);
+        }, 200);
+        return;
+      }
+      const step = steps[stepIdx];
+      if (this.barFill) this.barFill.style.width = step.pct + '%';
+      if (this.barGlow) this.barGlow.style.width = step.pct + '%';
+      if (this.progressPct) this.progressPct.textContent = step.pct + '%';
+      if (this.statusText) this.statusText.textContent = step.text;
+      stepIdx++;
+      setTimeout(runStep, totalDuration / steps.length);
+    };
+
+    setTimeout(runStep, 200);
   }
 
   startTips() {
@@ -176,6 +251,24 @@ export class PreloadScene {
     `;
   }
 
+  getWorldLoadingHTML() {
+    return `
+      <div style="text-align:center;color:#fff">
+        <div style="font-family:Orbitron,monospace;font-size:18px;color:#ff6b35;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px">Preparing World</div>
+        <div style="font-family:Orbitron,monospace;font-size:36px;font-weight:900;background:linear-gradient(135deg,#44aaff,#2266cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:30px">LOADING</div>
+        <div style="position:relative;width:320px;height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin:0 auto">
+          <div id="load-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#ff6b35,#ffaa44);border-radius:4px;transition:width 0.3s ease"></div>
+          <div id="load-bar-glow" style="position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,transparent,rgba(255,107,53,0.4),transparent);border-radius:4px;filter:blur(4px);transition:width 0.3s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;width:320px;margin:6px auto 0">
+          <span id="load-status" style="color:#888;font-family:Rajdhani,sans-serif;font-size:13px">Preparing your world...</span>
+          <span id="load-pct" style="color:#ff6b35;font-family:Orbitron,monospace;font-size:13px;font-weight:700">0%</span>
+        </div>
+        <div id="load-tip" style="margin-top:30px;color:#555;font-family:Rajdhani,sans-serif;font-size:14px;transition:all 0.3s ease;letter-spacing:1px">Loading world...</div>
+      </div>
+    `;
+  }
+
   exit() {
     const div = document.getElementById('overlay');
     if (div) {
@@ -183,5 +276,6 @@ export class PreloadScene {
       div.style.transition = 'opacity 0.4s ease';
       setTimeout(() => div.style.display = 'none', 400);
     }
+    if (this.tipInterval) { clearInterval(this.tipInterval); this.tipInterval = null; }
   }
 }

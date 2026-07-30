@@ -169,55 +169,72 @@ export class GameScene {
     return tex;
   }
 
-  buildCity(scene) {
-    const ct = this.manager.cityModels;
-    if (!ct) return;
+   buildCity(scene) {
+     const ct = this.manager.cityModels;
+     if (!ct) return;
 
-    const buildingNames = Object.keys(ct).filter(n => n.startsWith('building-') || n.startsWith('low-detail-building'));
-    if (buildingNames.length < 2) { buildingNames.length = 0; buildingNames.push('building-a', 'building-c'); }
+     const buildingNames = Object.keys(ct).filter(n => n.startsWith('building-') || n.startsWith('low-detail-building'));
+     if (buildingNames.length < 2) { buildingNames.length = 0; buildingNames.push('building-a', 'building-c'); }
 
-    const place = (name, x, z, rotY, scale) => {
-      const model = ct[name];
-      if (!model || model.children.length === 0) return null;
-      const m = model.clone();
-      m.scale.set(scale || TILE, scale || TILE, scale || TILE);
-      m.position.set(x, 0, z);
-      if (rotY) m.rotation.y = rotY;
-      m.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-      this.addObj(m);
-      return m;
-    };
+     const geoCache = {};
+     const matCache = {};
 
-    const orients = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-    const inn = ROAD_INN, out = ROAD_OUT, rw = ROAD_W;
+     const getSharedGeo = (name) => {
+       if (!geoCache[name]) {
+         const model = ct[name];
+         if (model && model.children.length > 0) {
+           model.children.forEach(child => {
+             if (child.isMesh && child.geometry) {
+               geoCache[name + '_' + child.geometry.id] = child.geometry.clone();
+             }
+           });
+         }
+       }
+       return Object.values(geoCache);
+     };
 
-    for (let i = 0; i < 40; i++) {
-      const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 30 + Math.random() * (inn - 40);
-      const x = Math.cos(angle) * dist;
-      const z = Math.sin(angle) * dist;
-      const rot = orients[Math.floor(Math.random() * orients.length)];
-      const sc = TILE + (Math.random() - 0.5) * 5;
-      const mesh = place(name, x, z, rot, sc);
-      if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
-    }
+     const place = (name, x, z, rotY, scale) => {
+       const model = ct[name];
+       if (!model || model.children.length === 0) return null;
+       const m = model.clone();
+       m.scale.set(scale || TILE, scale || TILE, scale || TILE);
+       m.position.set(x, 0, z);
+       if (rotY) m.rotation.y = rotY;
+       m.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+       this.addObj(m);
+       return m;
+     };
 
-    for (let i = 0; i < 25; i++) {
-      const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
-      const angle = Math.random() * Math.PI * 2;
-      const dist = out + 20 + Math.random() * 120;
-      const x = Math.cos(angle) * dist;
-      const z = Math.sin(angle) * dist;
-      const rot = orients[Math.floor(Math.random() * orients.length)];
-      const sc = TILE + (Math.random() - 0.5) * 6;
-      const mesh = place(name, x, z, rot, sc);
-      if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
-    }
+     const orients = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+     const inn = ROAD_INN, out = ROAD_OUT, rw = ROAD_W;
 
-    this.addRepairShop(-(inn + rw / 2), -(inn + rw / 2));
-    this.addFuelStation((inn + rw / 2), (inn + rw / 2));
-  }
+     for (let i = 0; i < 40; i++) {
+       const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
+       const angle = Math.random() * Math.PI * 2;
+       const dist = 30 + Math.random() * (inn - 40);
+       const x = Math.cos(angle) * dist;
+       const z = Math.sin(angle) * dist;
+       const rot = orients[Math.floor(Math.random() * orients.length)];
+       const sc = TILE + (Math.random() - 0.5) * 5;
+       const mesh = place(name, x, z, rot, sc);
+       if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
+     }
+
+     for (let i = 0; i < 25; i++) {
+       const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
+       const angle = Math.random() * Math.PI * 2;
+       const dist = out + 20 + Math.random() * 120;
+       const x = Math.cos(angle) * dist;
+       const z = Math.sin(angle) * dist;
+       const rot = orients[Math.floor(Math.random() * orients.length)];
+       const sc = TILE + (Math.random() - 0.5) * 6;
+       const mesh = place(name, x, z, rot, sc);
+       if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
+     }
+
+     this.addRepairShop(-(inn + rw / 2), -(inn + rw / 2));
+     this.addFuelStation((inn + rw / 2), (inn + rw / 2));
+   }
 
   addRepairShop(x, z) {
     const m = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.6 });
@@ -269,13 +286,15 @@ export class GameScene {
     this.sunLight = new THREE.DirectionalLight(0xffeedd, 1.4);
     this.sunLight.position.set(60, 100, 50);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.mapSize.set(512, 512);
+    this.sunLight.shadow.camera.near = 1;
+    this.sunLight.shadow.camera.far = 200;
     this.sunLight.shadow.camera.near = 1;
     this.sunLight.shadow.camera.far = 250;
-    this.sunLight.shadow.camera.left = -120;
-    this.sunLight.shadow.camera.right = 120;
-    this.sunLight.shadow.camera.top = 120;
-    this.sunLight.shadow.camera.bottom = -120;
+    this.sunLight.shadow.camera.left = -80;
+    this.sunLight.shadow.camera.right = 80;
+    this.sunLight.shadow.camera.top = 80;
+    this.sunLight.shadow.camera.bottom = -80;
     this.addObj(this.sunLight);
   }
 
