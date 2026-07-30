@@ -205,6 +205,7 @@ export class GameScene {
     const sg = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 0.3), sm); sg.position.set(x, 4.8, z - 4); this.addObj(sg);
     this.addZone(x, z, 10, 0x44ff44, 0.15);
     this.repairZones = [{ x, z, r: 10 }];
+    this.buildings.push({ x, z, r: 8 });
   }
 
   addFuelStation(x, z) {
@@ -221,6 +222,7 @@ export class GameScene {
     const sg = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1, 0.25), sm); sg.position.set(x, ch + 0.6, z); this.addObj(sg);
     this.addZone(x, z, 9, 0xff4444, 0.15);
     this.fuelZones = [{ x, z, r: 9 }];
+    this.buildings.push({ x, z, r: 7 });
   }
 
   addZone(x, z, r, color, alpha) {

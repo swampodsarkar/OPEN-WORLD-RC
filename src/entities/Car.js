@@ -6,12 +6,12 @@ export class Car {
     this.name = name.replace(/-/g, ' ');
     this.mesh = model.clone();
     this.mesh.position.set(x, 0, z);
-    this.mesh.scale.set(1, 1, 1);
+    this.mesh.scale.set(3, 3, 3);
     this.mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     scene.add(this.mesh);
 
     this.speed = 0;
-    this.mesh.rotation.y = Math.random() * Math.PI * 2;
+    this.mesh.rotation.y = 0;
     this.occupied = false;
     this.boost = false;
 
