@@ -2,14 +2,15 @@ export const CONFIG = {
   width: window.innerWidth,
   height: window.innerHeight,
   world: {
-    size: 1000,
-    half: 500
+    size: 2000,
+    half: 1000
   },
   road: {
-    outerHalf: 300,
-    innerHalf: 220,
+    outerHalf: 400,
+    innerHalf: 280,
     barrierHeight: 3,
-    barrierWidth: 1
+    barrierWidth: 1,
+    laneWidth: 3.5
   },
   car: {
     maxSpeed: 50,

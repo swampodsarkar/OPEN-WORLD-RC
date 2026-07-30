@@ -11,10 +11,11 @@ const CAR_IDS = [
 ];
 
 const TILE = 8;
-const ROAD_OUT = 300;
-const ROAD_INN = 220;
+const ROAD_OUT = CONFIG.road.outerHalf;
+const ROAD_INN = CONFIG.road.innerHalf;
 const ROAD_W = ROAD_OUT - ROAD_INN;
 const ROAD_L = ROAD_OUT * 2;
+const LANE_W = CONFIG.road.laneWidth;
 const DAY_DURATION = 120;
 
 export class GameScene {
@@ -146,13 +147,14 @@ export class GameScene {
   addRoads(scene) {
     const out = ROAD_OUT, inn = ROAD_INN, rw = ROAD_W, rl = ROAD_L;
     const asphaltMat = new THREE.MeshStandardMaterial({ map: this.makeAsphaltTex(), roughness: 0.9, metalness: 0.01 });
-    const roadGeo = this.createRoadGeometry(rw, rl, 24, 24);
+    const roadGeo = this.createRoadGeometry(rw, rl, 32, 32);
 
     function rd(x, z, w, h) {
       const m = new THREE.Mesh(roadGeo, asphaltMat);
       m.position.set(x, 0.05, z);
       m.rotation.x = -Math.PI / 2;
       m.receiveShadow = true;
+      m.castShadow = true;
       return m;
     }
 
@@ -161,71 +163,101 @@ export class GameScene {
     this.addObj(rd(-(inn + rw / 2), 0, rw, rl));
     this.addObj(rd((inn + rw / 2), 0, rw, rl));
 
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const clearMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+    const centerGeo = this.createRoadGeometry(rw * 0.6, rl, 32, 32);
+    const halfroad = rw / 2;
+    const centerLineY = 0.08;
 
-    const dashGeoH = new THREE.PlaneGeometry(3.2, 0.35);
-    const dashGeoV = new THREE.PlaneGeometry(0.35, 3.2);
-    const edgeGeo = new THREE.PlaneGeometry(1, 0.22);
-    const crossGeo = new THREE.PlaneGeometry(1.1, 0.45);
+    const centerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+    const dashedGeoH = new THREE.PlaneGeometry(3.5, 0.4);
+    const dashedGeoV = new THREE.PlaneGeometry(0.4, 3.5);
 
-    const addLaneLines = (cx, cz, length, horizontal) => {
-      const dashLen = 3.2, gap = 3.2, count = Math.floor(length / (dashLen + gap));
+    const addYellowDashes = (cx, cz, length, horizontal) => {
+      const dashLen = 4, gap = 5, count = Math.floor(length / (dashLen + gap));
       const offset = -length / 2;
       for (let i = 0; i < count; i++) {
         const t = offset + i * (dashLen + gap) + dashLen / 2;
-        const d = new THREE.Mesh(horizontal ? dashGeoH : dashGeoV, lineMat);
-        d.position.set(horizontal ? cx + t : cx, 0.07, horizontal ? cz : cz + t);
+        const d = new THREE.Mesh(horizontal ? dashedGeoH : dashedGeoV, yellowMat);
+        d.position.set(horizontal ? cx + t : cx, centerLineY, horizontal ? cz : cz + t);
         d.rotation.x = -Math.PI / 2;
         this.addObj(d);
       }
     };
 
-    const addEdgeLines = (cx, cz, length, horizontal) => {
-      const offsets = [-rw / 2 + 0.7, rw / 2 - 0.7];
+    addYellowDashes(0, 0, rl, true);
+    addYellowDashes(0, 0, rl, false);
+
+    const edgeLineGeo = new THREE.PlaneGeometry(1, 0.3);
+    const innerEdgeGeo = new THREE.PlaneGeometry(1, 0.3);
+    const addEdgeLines = (cx, cz, length, horizontal, mat) => {
+      const offsets = [-rw / 2, rw / 2];
       offsets.forEach(off => {
-        const d = new THREE.Mesh(edgeGeo, lineMat);
-        if (horizontal) {
-          d.position.set(cx, 0.07, cz + off);
-        } else {
-          d.position.set(cx + off, 0.07, cz);
-          d.rotation.y = Math.PI / 2;
-        }
+        const d = new THREE.Mesh(horizontal ? edgeLineGeo : edgeLineGeo.clone(), mat || centerMat);
+        d.position.set(horizontal ? cx : cx + off, 0.075, horizontal ? cz + off : cz);
         d.rotation.x = -Math.PI / 2;
         this.addObj(d);
       });
     };
+    addEdgeLines(0, -(inn + rw / 2), rl, true, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    addEdgeLines(0, (inn + rw / 2), rl, true, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    addEdgeLines(-(inn + rw / 2), 0, rl, false, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    addEdgeLines((inn + rw / 2), 0, rl, false, new THREE.MeshBasicMaterial({ color: 0xffffff }));
 
-    const addCrosswalk = (cx, cz, horizontal) => {
-      const count = 8, barW = 0.45, gap = 0.25;
-      const totalW = count * barW + (count - 1) * gap;
-      const startOff = -totalW / 2;
+    const studGeo = new THREE.BoxGeometry(0.2, 0.06, 0.2);
+    const studMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+    const studCount = Math.floor(rl / 1.5);
+    for (let i = 0; i < studCount; i++) {
+      const t = -rl / 2 + i * 1.5 + 0.75;
+      const s1 = new THREE.Mesh(studGeo, studMat);
+      s1.position.set(inn + rw / 2 + 0.1, 0.07, t); s1.rotation.x = -Math.PI / 2; this.addObj(s1);
+      const s2 = new THREE.Mesh(studGeo, studMat);
+      s2.position.set(-(inn + rw / 2 + 0.1), 0.07, t); s2.rotation.x = -Math.PI / 2; this.addObj(s2);
+    }
+
+    const streetLightMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.4, metalness: 0.6 });
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.8 });
+    const lightGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    const lightMat = new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffffaa, emissiveIntensity: 0.8 });
+    const poleGeo = new THREE.CylinderGeometry(0.08, 0.1, 5, 6);
+    const armGeo = new THREE.BoxGeometry(0.5, 0.1, 0.1);
+    for (let z = -(rl / 2 + 20); z <= (rl / 2 + 20); z += 60) {
+      for (let side of [-1, 1]) {
+        const sx = side * (out + 1.5);
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.set(sx, 2.5, z); pole.castShadow = true; this.addObj(pole);
+        const arm = new THREE.Mesh(armGeo, streetLightMat);
+        arm.position.set(sx, 4.8, z); arm.rotation.z = -side * 0.3; this.addObj(arm);
+        const light = new THREE.Mesh(lightGeo, lightMat);
+        light.position.set(sx + side * 0.3, 4.9, z); this.addObj(light);
+        const pl = new THREE.PointLight(0xffffcc, 2, 15);
+        pl.position.set(sx + side * 0.3, 4.9, z);
+        this.addObj(pl);
+      }
+    }
+
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xcc4444, roughness: 0.6, metalness: 0.1 });
+    const barrierGeo = new THREE.BoxGeometry(0.15, 0.9, 2);
+    const barrierTopGeo = new THREE.BoxGeometry(2.5, 0.15, 0.5);
+    const barrierTopMat = new THREE.MeshStandardMaterial({ color: 0xff6666, roughness: 0.5, metalness: 0.2 });
+    const addBarrier = (cx, cz, length, horizontal) => {
+      const count = Math.floor(length / 2);
       for (let i = 0; i < count; i++) {
-        const d = new THREE.Mesh(horizontal ? crossGeo : crossGeo.clone(), clearMat);
-        const t = startOff + i * (barW + gap);
-        d.position.set(horizontal ? cx : cx + t, 0.08, horizontal ? cz + t : cz);
-        d.rotation.x = -Math.PI / 2;
-        this.addObj(d);
+        const t = -length / 2 + i * 2 + 1;
+        const x = horizontal ? cx + t : cx;
+        const z = horizontal ? cz : cz + t;
+        const b = new THREE.Mesh(barrierGeo, barrierMat);
+        b.position.set(x, 0.45, z); b.castShadow = true; this.addObj(b);
+        const bt = new THREE.Mesh(barrierTopGeo, barrierTopMat);
+        bt.position.set(x, 0.95, z); bt.rotation.x = -Math.PI / 2; this.addObj(bt);
       }
     };
+    addBarrier(0, -(out + 0.8), rl, true);
+    addBarrier(0, (out + 0.8), rl, true);
+    addBarrier(-(out + 0.8), 0, rl, false);
+    addBarrier((out + 0.8), 0, rl, false);
 
-    addEdgeLines(0, -(inn + rw / 2), rl, true);
-    addEdgeLines(0, (inn + rw / 2), rl, true);
-    addLaneLines(0, -(inn + rw / 2), rl, true);
-    addLaneLines(0, (inn + rw / 2), rl, true);
-
-    addEdgeLines(-(inn + rw / 2), 0, rl, false);
-    addEdgeLines((inn + rw / 2), 0, rl, false);
-    addLaneLines(-(inn + rw / 2), 0, rl, false);
-    addLaneLines((inn + rw / 2), 0, rl, false);
-
-    addCrosswalk(0, -(inn + rw / 2 + rw / 2 + 1.5), true);
-    addCrosswalk(0, (inn + rw / 2 - rw / 2 - 1.5), true);
-    addCrosswalk(-(inn + rw / 2 + rw / 2 + 1.5), 0, false);
-    addCrosswalk((inn + rw / 2 - rw / 2 - 1.5), 0, false);
-
-    const sw = 2.2, oe = out + 2, ie = inn - 2;
-    const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.7, metalness: 0.01 });
+    const sw = 2.5, oe = out + 3, ie = inn - 2;
+    const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.7, metalness: 0.01 });
     const sidewalkGeoH = new THREE.PlaneGeometry(rl + sw * 2 + 4, sw);
     const sidewalkGeoV = new THREE.PlaneGeometry(sw, rl + sw * 2 + 4);
     const innSideGeoH = new THREE.PlaneGeometry(rl - sw * 2 - 4, sw);
@@ -247,23 +279,42 @@ export class GameScene {
     swalk.call(this, -(ie - sw / 2), 0, innSideGeoV);
     swalk.call(this, (ie - sw / 2), 0, innSideGeoV);
 
-    const curbMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.55, metalness: 0.02 });
+    const curbMat = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.5, metalness: 0.05 });
     function addCurb(x, z, geo, rotY) {
       const m = new THREE.Mesh(geo, curbMat);
-      m.position.set(x, 0.2, z);
+      m.position.set(x, 0.22, z);
       m.rotation.y = rotY || 0;
       m.castShadow = true;
       m.receiveShadow = true;
       this.addObj(m);
     }
-    addCurb.call(this, 0, -(oe + 0.3), new THREE.BoxGeometry(rl + sw * 2 + 4, 0.3, 0.6));
-    addCurb.call(this, 0, (oe + 0.3), new THREE.BoxGeometry(rl + sw * 2 + 4, 0.3, 0.6));
-    addCurb.call(this, 0, -(ie - 0.3), new THREE.BoxGeometry(rl - sw * 2 - 4, 0.3, 0.6));
-    addCurb.call(this, 0, (ie - 0.3), new THREE.BoxGeometry(rl - sw * 2 - 4, 0.3, 0.6));
-    addCurb.call(this, -(oe + 0.3), 0, new THREE.BoxGeometry(sw * 2 + 4, 0.3, 0.6), Math.PI / 2);
-    addCurb.call(this, (oe + 0.3), 0, new THREE.BoxGeometry(sw * 2 + 4, 0.3, 0.6), Math.PI / 2);
-    addCurb.call(this, -(ie - 0.3), 0, new THREE.BoxGeometry(sw * 2 - 4, 0.3, 0.6), Math.PI / 2);
-    addCurb.call(this, (ie - 0.3), 0, new THREE.BoxGeometry(sw * 2 - 4, 0.3, 0.6), Math.PI / 2);
+    addCurb.call(this, 0, -(oe + 0.1), new THREE.BoxGeometry(rl + sw * 2 + 4, 0.25, 0.5));
+    addCurb.call(this, 0, (oe + 0.1), new THREE.BoxGeometry(rl + sw * 2 + 4, 0.25, 0.5));
+    addCurb.call(this, 0, -(ie - 0.1), new THREE.BoxGeometry(rl - sw * 2 - 4, 0.25, 0.5));
+    addCurb.call(this, 0, (ie - 0.1), new THREE.BoxGeometry(rl - sw * 2 - 4, 0.25, 0.5));
+    addCurb.call(this, -(oe + 0.1), 0, new THREE.BoxGeometry(sw * 2 + 4, 0.25, 0.5), Math.PI / 2);
+    addCurb.call(this, (oe + 0.1), 0, new THREE.BoxGeometry(sw * 2 + 4, 0.25, 0.5), Math.PI / 2);
+    addCurb.call(this, -(ie - 0.1), 0, new THREE.BoxGeometry(sw * 2 - 4, 0.25, 0.5), Math.PI / 2);
+    addCurb.call(this, (ie - 0.1), 0, new THREE.BoxGeometry(sw * 2 - 4, 0.25, 0.5), Math.PI / 2);
+
+    const crossGeo = new THREE.PlaneGeometry(1.1, 0.5);
+    const clearMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+    function addCrosswalk(cx, cz, horizontal) {
+      const count = 10, barW = 0.4, gap = 0.15;
+      const totalW = count * barW + (count - 1) * gap;
+      const startOff = -totalW / 2;
+      for (let i = 0; i < count; i++) {
+        const d = new THREE.Mesh(horizontal ? crossGeo : crossGeo.clone(), clearMat);
+        const t = startOff + i * (barW + gap);
+        d.position.set(horizontal ? cx : cx + t, 0.085, horizontal ? cz + t : cz);
+        d.rotation.x = -Math.PI / 2;
+        this.addObj(d);
+      }
+    }
+    addCrosswalk(0, -(inn + rw / 2 + rw / 2 + 1.8), true);
+    addCrosswalk(0, (inn + rw / 2 - rw / 2 - 1.8), true);
+    addCrosswalk(-(inn + rw / 2 + rw / 2 + 1.8), 0, false);
+    addCrosswalk((inn + rw / 2 - rw / 2 - 1.8), 0, false);
   }
 
   createRoadGeometry(length, width, segX, segZ) {
@@ -279,7 +330,7 @@ export class GameScene {
   }
 
   makeAsphaltTex() {
-    const s = 256, c = document.createElement('canvas');
+    const s = 512, c = document.createElement('canvas');
     c.width = s; c.height = s;
     const ctx = c.getContext('2d');
 
@@ -289,14 +340,34 @@ export class GameScene {
     const img = ctx.getImageData(0, 0, s, s);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
-      const v = 50 + Math.random() * 30 | 0;
+      const v = 50 + Math.random() * 35 | 0;
       d[i] = v; d[i + 1] = v; d[i + 2] = v;
+    }
+    for (let y = 0; y < s; y += 64) {
+      for (let x = 0; x < s; x += 64) {
+        for (let dy = 0; dy < 64; dy++) {
+          for (let dx = 0; dx < 64; dx++) {
+            const idx = ((y + dy) * s + (x + dx)) * 4;
+            const noise = (Math.random() - 0.5) * 20;
+            d[idx] = Math.max(0, Math.min(255, d[idx] + noise));
+            d[idx + 1] = Math.max(0, Math.min(255, d[idx + 1] + noise));
+            d[idx + 2] = Math.max(0, Math.min(255, d[idx + 2] + noise));
+          }
+        }
+      }
     }
     ctx.putImageData(img, 0, 0);
 
+    ctx.strokeStyle = 'rgba(200,200,200,0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < s; i += 32) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(s, i); ctx.stroke();
+    }
+
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(8, 8);
+    tex.repeat.set(16, 16);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
@@ -340,29 +411,29 @@ export class GameScene {
      const orients = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
      const inn = ROAD_INN, out = ROAD_OUT, rw = ROAD_W;
 
-     for (let i = 0; i < 40; i++) {
-       const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
-       const angle = Math.random() * Math.PI * 2;
-       const dist = 30 + Math.random() * (inn - 40);
-       const x = Math.cos(angle) * dist;
-       const z = Math.sin(angle) * dist;
-       const rot = orients[Math.floor(Math.random() * orients.length)];
-       const sc = TILE + (Math.random() - 0.5) * 5;
-       const mesh = place(name, x, z, rot, sc);
-       if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
-     }
+      for (let i = 0; i < 50; i++) {
+        const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 30 + Math.random() * (inn - 40);
+        const x = Math.cos(angle) * dist;
+        const z = Math.sin(angle) * dist;
+        const rot = orients[Math.floor(Math.random() * orients.length)];
+        const sc = TILE + (Math.random() - 0.5) * 5;
+        const mesh = place(name, x, z, rot, sc);
+        if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
+      }
 
-     for (let i = 0; i < 25; i++) {
-       const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
-       const angle = Math.random() * Math.PI * 2;
-       const dist = out + 20 + Math.random() * 120;
-       const x = Math.cos(angle) * dist;
-       const z = Math.sin(angle) * dist;
-       const rot = orients[Math.floor(Math.random() * orients.length)];
-       const sc = TILE + (Math.random() - 0.5) * 6;
-       const mesh = place(name, x, z, rot, sc);
-       if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
-     }
+      for (let i = 0; i < 35; i++) {
+        const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
+        const angle = Math.random() * Math.PI * 2;
+        const dist = out + 20 + Math.random() * 120;
+        const x = Math.cos(angle) * dist;
+        const z = Math.sin(angle) * dist;
+        const rot = orients[Math.floor(Math.random() * orients.length)];
+        const sc = TILE + (Math.random() - 0.5) * 6;
+        const mesh = place(name, x, z, rot, sc);
+        if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
+      }
 
       this.addRepairShop(-(inn + rw / 2), -(inn + rw / 2));
       this.addFuelStation((inn + rw / 2), (inn + rw / 2));
@@ -803,7 +874,9 @@ export class GameScene {
       clamped = true;
     }
     if (pos.x !== x || pos.z !== z) clamped = true;
-    return { x, z, clamped };
+    const onRoad = (Math.abs(pos.x) <= out + 1 && Math.abs(pos.z) <= out + 1) &&
+                   !(Math.abs(pos.x) < inn - 5 && Math.abs(pos.z) < inn - 5);
+    return { x, z, clamped, onRoad };
   }
 
   checkBuildingCollision(car) {
@@ -1200,6 +1273,13 @@ export class GameScene {
         this.shakeScreen(0.3, 0.15);
       }
     }
+    if (!result.onRoad && !this.isCreative) {
+      car.speed *= 0.92;
+      if (Math.abs(car.speed) > 10 && this.collisionCooldown <= 0) {
+        car.takeDamage(Math.abs(car.speed) * 0.04);
+        this.collisionCooldown = 0.2;
+      }
+    }
 
     this.checkBuildingCollision(car);
     this.collisionCooldown = Math.max(0, this.collisionCooldown - dt);
@@ -1403,9 +1483,9 @@ export class GameScene {
     }
   }
 
-  spawnCoins() {
-    const inn = ROAD_INN, out = ROAD_OUT;
-    for (let i = 0; i < 30; i++) {
+   spawnCoins() {
+     const inn = ROAD_INN, out = ROAD_OUT;
+     for (let i = 0; i < 50; i++) {
       const side = Math.floor(Math.random() * 4);
       let x, z;
       const halfRw = ROAD_W / 2 - 4;
