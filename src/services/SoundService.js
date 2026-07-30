@@ -24,7 +24,7 @@ export class SoundService {
   }
 
   startEngine() {
-    if (!this.enabled || !this.ctx) return;
+    if (!this.enabled || !this.ctx || this.engineOsc) return;
     this.engineOsc = this.ctx.createOscillator();
     this.engineGain = this.ctx.createGain();
     this.engineOsc.type = 'sawtooth';
@@ -45,7 +45,7 @@ export class SoundService {
   }
 
   updateEngine(speed, maxSpeed) {
-    if (!this.enabled || !this.engineOsc) return;
+    if (!this.enabled || !this.engineOsc || !this.ctx) return;
     const pct = Math.min(1, Math.abs(speed) / maxSpeed);
     this.engineOsc.frequency.linearRampToValueAtTime(60 + pct * 150, this.ctx.currentTime + 0.1);
     this.engineGain.gain.linearRampToValueAtTime(0.02 + pct * 0.08, this.ctx.currentTime + 0.1);
@@ -54,7 +54,7 @@ export class SoundService {
   }
 
   startTire() {
-    if (!this.enabled || this.tireNoise) return;
+    if (!this.enabled || !this.ctx || this.tireNoise) return;
     this.tireNoise = this.ctx.createOscillator();
     this.tireGain = this.ctx.createGain();
     this.tireNoise.type = 'sawtooth';

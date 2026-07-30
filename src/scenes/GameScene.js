@@ -79,6 +79,7 @@ export class GameScene {
     this.cameraOrbitDistance = CONFIG.camera.followDistance;
     this.cameraOrbitHeight = CONFIG.camera.followHeight;
     this.cameraTarget = new THREE.Vector3();
+    this.sound.init();
     this.buildScene();
     this.bindKeys();
     this.bindMouse();
@@ -87,7 +88,6 @@ export class GameScene {
     this.createMinimap();
     this.spawnCoins();
     this.initCheckpoints();
-    this.sound.init();
     if (this.multi) this.initMultiplayer(data);
   }
 
@@ -306,48 +306,19 @@ export class GameScene {
   updateLighting(dt) {
     this.dayTime += dt / DAY_DURATION;
     if (this.dayTime > 24) this.dayTime -= 24;
-    const hr = this.dayTime;
+    const hr = 10;
 
     let intensity, ambIntensity, hemiIntensity;
     let sunColor, ambColor, hemiColor;
     let sunAngle;
 
-    if (hr >= 6 && hr < 18) {
-      const t = (hr - 6) / 12;
-      intensity = 0.8 + t * 0.6;
-      ambIntensity = 0.35 + t * 0.2;
-      hemiIntensity = 0.3 + t * 0.15;
-      sunColor = new THREE.Color(0xffeedd);
-      ambColor = new THREE.Color(0x556677);
-      hemiColor = new THREE.Color(0x88ccff);
-      sunAngle = t * Math.PI - Math.PI * 0.3;
-    } else if (hr >= 18 && hr < 20) {
-      const t = (hr - 18) / 2;
-      intensity = 1.4 * (1 - t * 0.7);
-      ambIntensity = 0.55 * (1 - t * 0.5);
-      hemiIntensity = 0.45 * (1 - t * 0.4);
-      sunColor = new THREE.Color(1, 0.7 + t * 0.15, 0.4 + t * 0.2);
-      ambColor = new THREE.Color(0x664433);
-      hemiColor = new THREE.Color(0x885544);
-      sunAngle = Math.PI * 0.7 + t * 0.3;
-    } else if (hr >= 20 || hr < 5) {
-      intensity = 0.05;
-      ambIntensity = 0.08;
-      hemiIntensity = 0.06;
-      sunColor = new THREE.Color(0x222244);
-      ambColor = new THREE.Color(0x111122);
-      hemiColor = new THREE.Color(0x222233);
-      sunAngle = hr >= 20 ? Math.PI : -Math.PI * 0.3;
-    } else {
-      const t = (hr - 5) / 1;
-      intensity = 0.05 + t * 0.75;
-      ambIntensity = 0.08 + t * 0.27;
-      hemiIntensity = 0.06 + t * 0.24;
-      sunColor = new THREE.Color(0.7 + t * 0.3, 0.4 + t * 0.4, 0.3 + t * 0.3);
-      ambColor = new THREE.Color(0x332244);
-      hemiColor = new THREE.Color(0x443355);
-      sunAngle = -Math.PI * 0.3 + t * 0.8;
-    }
+    intensity = 1.0;
+    ambIntensity = 0.45;
+    hemiIntensity = 0.35;
+    sunColor = new THREE.Color(0xffeedd);
+    ambColor = new THREE.Color(0x556677);
+    hemiColor = new THREE.Color(0x88ccff);
+    sunAngle = Math.PI * 0.2;
 
     this.sunLight.color.copy(sunColor);
     this.sunLight.intensity = Math.max(0.05, intensity);
@@ -361,7 +332,9 @@ export class GameScene {
     this.hemiLight.color.copy(hemiColor);
     this.hemiLight.intensity = Math.max(0.03, hemiIntensity);
 
-    this.updateSky(this.manager.scene);
+    const tex = this.manager.skyboxes?.['day'];
+    this.manager.scene.background = tex || new THREE.Color(0xc8d0d8);
+    this.manager.scene.fog = new THREE.Fog(0xc8d0d8, 120, 600);
   }
 
   spawnCar(scene) {
@@ -821,7 +794,7 @@ export class GameScene {
       const h = Math.floor(this.dayTime);
       const m = Math.floor((this.dayTime - h) * 60);
       this.hudEls.time.textContent = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-      if (this.hudEls.timeIcon) this.hudEls.timeIcon.textContent = isNight ? '🌙' : '☀️';
+      if (this.hudEls.timeIcon) this.hudEls.timeIcon.textContent = '☀️';
     }
     if (this.hudEls.players) this.hudEls.players.textContent = '👥 ' + Object.keys(this.ghostCars).length + ' player(s)';
   }
