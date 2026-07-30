@@ -16,24 +16,13 @@ const COLORS = [
   { name: 'White', hex: '#eeeeee' },
   { name: 'Black', hex: '#222222' },
   { name: 'Orange', hex: '#ff6b35' },
-  { name: 'Purple', hex: '#8844cc' }
 ];
-
-const CHARACTERS = [
-  { name: 'Criminal', tex: 'assets/characters/criminalMaleA.png' },
-  { name: 'Skater M', tex: 'assets/characters/skaterMaleA.png' },
-  { name: 'Cyborg', tex: 'assets/characters/cyborgFemaleA.png' },
-  { name: 'Skater F', tex: 'assets/characters/skaterFemaleA.png' }
-];
-
 export class CarSelectScene {
   constructor(manager) {
     this.manager = manager;
     this.selectedIdx = 0;
     this.selectedColor = 0;
-    this.selectedChar = 0;
     this.carPreview = null;
-    this.charPreview = null;
     this.overlay = null;
     this.isLoading = false;
   }
@@ -79,47 +68,6 @@ export class CarSelectScene {
     });
   }
 
-  createCharModel(charIdx) {
-    const char = CHARACTERS[charIdx] || CHARACTERS[0];
-    const tex = new THREE.TextureLoader().load(char.tex);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const skinMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.0 });
-    const skinMat2 = skinMat.clone();
-
-    const group = new THREE.Group();
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), skinMat);
-    head.position.set(0, 1.55, 0);
-    group.add(head);
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.3), skinMat2);
-    torso.position.set(0, 1.05, 0);
-    group.add(torso);
-
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x222233, roughness: 0.8 });
-    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.55, 0.18), legMat);
-    lLeg.position.set(-0.12, 0.55, 0);
-    group.add(lLeg);
-    const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.55, 0.18), legMat);
-    rLeg.position.set(0.12, 0.55, 0);
-    group.add(rLeg);
-
-    const armMat = skinMat.clone();
-    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), armMat);
-    lArm.position.set(-0.38, 1.1, 0);
-    group.add(lArm);
-    const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), armMat);
-    rArm.position.set(0.38, 1.1, 0);
-    group.add(rArm);
-
-    group.traverse(c => {
-      if (c.isMesh) {
-        c.castShadow = true;
-        c.receiveShadow = true;
-      }
-    });
-    return group;
-  }
-
   spawnPreview() {
     const scene = this.manager.scene;
     const model = this.manager.models[CAR_IDS[this.selectedIdx]];
@@ -132,8 +80,6 @@ export class CarSelectScene {
     this.carPreview.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
     this.applyColor(this.carPreview, COLORS[this.selectedColor].hex);
     scene.add(this.carPreview);
-
-    this.spawnCharPreview();
 
     const amb = new THREE.AmbientLight(0x556677, 1.2);
     amb.name = '_select_light_amb';
@@ -158,18 +104,6 @@ export class CarSelectScene {
     const cam = this.manager.camera;
     cam.position.set(0, 4, 12);
     cam.lookAt(0, 0.5, 0);
-  }
-
-  spawnCharPreview() {
-    if (this.charPreview) {
-      this.manager.scene.remove(this.charPreview);
-      this.charPreview.traverse(c => { if (c.isMesh) { c.geometry?.dispose(); c.material?.dispose(); } });
-      this.charPreview = null;
-    }
-    this.charPreview = this.createCharModel(this.selectedChar);
-    this.charPreview.scale.set(2, 2, 2);
-    this.charPreview.position.set(2, 0, 0);
-    this.manager.scene.add(this.charPreview);
   }
 
   applyColor(mesh, hex) {
@@ -215,11 +149,8 @@ export class CarSelectScene {
           <div style="font-family:Rajdhani,sans-serif;font-size:10px;color:#445;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px">Paint Color</div>
           <div style="display:flex;gap:6px;justify-content:center" id="color-picker"></div>
         </div>
-        <div style="margin-bottom:20px;animation:fadeUp 0.6s ease-out 0.6s both">
-          <div style="font-family:Rajdhani,sans-serif;font-size:10px;color:#445;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px">Character</div>
-          <div style="display:flex;gap:6px;justify-content:center" id="char-picker"></div>
-        </div>
-        <button id="sel-drive" class="sel-btn-drive">ENTER THE WORLD</button>
+<div style="margin-bottom:20px;animation:fadeUp 0.6s ease-out 0.6s both">
+         <button id="sel-drive" class="sel-btn-drive">ENTER THE WORLD</button>
         <br>
         <button id="sel-back" class="sel-btn-back">← Back to Menu</button>
       </div>
@@ -240,9 +171,6 @@ export class CarSelectScene {
         .color-dot { width:30px; height:30px; border-radius:50%; border:2.5px solid transparent; cursor:pointer; transition:all 0.2s; box-shadow:0 2px 6px rgba(0,0,0,0.3) }
         .color-dot:hover { transform:scale(1.18); box-shadow:0 4px 14px rgba(0,0,0,0.4) }
         .color-dot.active { border-color:#fff; box-shadow:0 0 14px rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.3) }
-        .char-dot { width:30px; height:30px; border-radius:50%; border:2.5px solid transparent; cursor:pointer; transition:all 0.2s; box-shadow:0 2px 6px rgba(0,0,0,0.3); background-size:cover; background-position:center }
-        .char-dot:hover { transform:scale(1.18); box-shadow:0 4px 14px rgba(0,0,0,0.4) }
-        .char-dot.active { border-color:#fff; box-shadow:0 0 14px rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.3) }
       </style>
     `;
     document.body.appendChild(d);
@@ -258,16 +186,6 @@ export class CarSelectScene {
       picker.appendChild(dot);
     });
 
-    const charPicker = document.getElementById('char-picker');
-    CHARACTERS.forEach((ch, i) => {
-      const dot = document.createElement('div');
-      dot.className = 'char-dot' + (i === 0 ? ' active' : '');
-      dot.style.cssText = 'width:30px;height:30px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.3);background-size:cover;background-position:center;background-image:url(' + ch.tex + ')';
-      dot.title = ch.name;
-      dot.onclick = () => this.pickChar(i);
-      charPicker.appendChild(dot);
-    });
-
     document.getElementById('sel-prev').onclick = () => this.selectCar(-1);
     document.getElementById('sel-next').onclick = () => this.selectCar(1);
     document.getElementById('sel-drive').onclick = () => this.startGame();
@@ -276,8 +194,6 @@ export class CarSelectScene {
     document.addEventListener('keydown', this._keyHandler = (e) => {
       if (e.key === 'ArrowLeft') this.selectCar(-1);
       else if (e.key === 'ArrowRight') this.selectCar(1);
-      else if (e.key === 'ArrowUp') { e.preventDefault(); this.pickChar((this.selectedChar - 1 + CHARACTERS.length) % CHARACTERS.length); }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); this.pickChar((this.selectedChar + 1) % CHARACTERS.length); }
       else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.startGame(); }
       else if (e.key === 'Escape') { this.exit(); this.manager.start('menu'); }
     });
@@ -309,16 +225,6 @@ export class CarSelectScene {
       this.applyColor(this.carPreview, COLORS[this.selectedColor].hex);
       this.manager.scene.add(this.carPreview);
     }
-
-    if (this.charPreview) {
-      this.manager.scene.remove(this.charPreview);
-      this.charPreview.traverse(c => { if (c.isMesh) { c.geometry?.dispose(); c.material?.dispose(); } });
-      this.charPreview = null;
-    }
-    this.charPreview = this.createCharModel(this.selectedChar);
-    this.charPreview.scale.set(2, 2, 2);
-    this.charPreview.position.set(2, 0, 0);
-    this.manager.scene.add(this.charPreview);
 
     const countEl = document.getElementById('sel-count');
     const colorDot = document.getElementById('sel-preview-color');

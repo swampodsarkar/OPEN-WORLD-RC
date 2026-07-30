@@ -10,13 +10,6 @@ const CAR_IDS = [
   'tractor-shovel', 'hatchback-sports'
 ];
 
-const CHARACTERS = [
-  { name: 'Criminal', tex: 'assets/characters/criminalMaleA.png' },
-  { name: 'Skater M', tex: 'assets/characters/skaterMaleA.png' },
-  { name: 'Cyborg', tex: 'assets/characters/cyborgFemaleA.png' },
-  { name: 'Skater F', tex: 'assets/characters/skaterFemaleA.png' }
-];
-
 const TILE = 8;
 const ROAD_OUT = 300;
 const ROAD_INN = 220;
@@ -69,6 +62,10 @@ export class GameScene {
     this.lapCount = 0;
     this.checkpointIdx = 0;
     this.checkpoints = [];
+    this.speedTraps = [];
+    this.driftZones = [];
+    this.topSpeedRecord = 0;
+    this.driftZoneScore = 0;
     this._touchStartX = 0;
     this._touchStartY = 0;
   }
@@ -83,12 +80,13 @@ export class GameScene {
       this.selectedIdx = data.carIdx;
     }
     this.selectedColor = (data && data.color) || null;
-    this.selectedChar = (data && data.charIdx !== undefined) ? data.charIdx : 0;
     this.cameraAngle = 0;
     this.cameraOrbitDistance = CONFIG.camera.followDistance;
     this.cameraOrbitHeight = CONFIG.camera.followHeight;
     this.cameraTarget = new THREE.Vector3();
     this.sound.init();
+    this.topSpeedRecord = 0;
+    this.driftZoneScore = 0;
     this.buildScene();
     this.bindKeys();
     this.bindMouse();
@@ -98,7 +96,6 @@ export class GameScene {
     this.spawnCoins();
     this.initCheckpoints();
     if (this.multi) this.initMultiplayer(data);
-    this.spawnCharacter();
   }
 
   addObj(obj) { this.sceneObjects.push(obj); this.manager.scene.add(obj); }
@@ -247,9 +244,11 @@ export class GameScene {
        if (mesh) this.buildings.push({ mesh, x, z, r: sc * 2.2 });
      }
 
-     this.addRepairShop(-(inn + rw / 2), -(inn + rw / 2));
-     this.addFuelStation((inn + rw / 2), (inn + rw / 2));
-   }
+      this.addRepairShop(-(inn + rw / 2), -(inn + rw / 2));
+      this.addFuelStation((inn + rw / 2), (inn + rw / 2));
+      this.spawnSpeedTraps();
+      this.spawnDriftZones();
+    }
 
   addRepairShop(x, z) {
     const m = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.6 });
@@ -291,6 +290,58 @@ export class GameScene {
       const dot = new THREE.Mesh(new THREE.CircleGeometry(0.3, 8), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha + 0.2 }));
       dot.position.set(x + Math.cos(a) * r, 0.12, z + Math.sin(a) * r); dot.rotation.x = -Math.PI / 2; this.addObj(dot);
     }
+  }
+
+  spawnSpeedTraps() {
+    const inn = ROAD_INN, out = ROAD_OUT;
+    const placements = [
+      { x: 0, z: -(inn + ROAD_W / 2) + 40 }, { x: 0, z: (inn + ROAD_W / 2) - 40 },
+      { x: -(inn + ROAD_W / 2) + 40, z: 0 }, { x: (inn + ROAD_W / 2) - 40, z: 0 }
+    ];
+    placements.forEach(p => {
+      this.addSpeedTrap(p.x, p.z);
+    });
+  }
+
+  addSpeedTrap(x, z) {
+    const r = 12;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.5, r, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff44ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    ring.position.set(x, 0.15, z); ring.rotation.x = -Math.PI / 2; this.addObj(ring);
+    const arrowGeo = new THREE.PlaneGeometry(4, 1.5);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff44ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.position.set(x, 0.2, z); arrow.rotation.x = -Math.PI / 2; this.addObj(arrow);
+    this.speedTraps.push({ x, z, r, triggered: false });
+  }
+
+  spawnDriftZones() {
+    const inn = ROAD_INN, out = ROAD_OUT;
+    const placements = [
+      { x: -(inn + 20), z: -(inn + ROAD_W / 2) + 20 },
+      { x: (inn + ROAD_W / 2) - 20, z: (inn + 20) },
+      { x: -(inn + 20), z: (inn + ROAD_W / 2) - 20 },
+      { x: (inn + ROAD_W / 2) - 20, z: -(inn + 20) }
+    ];
+    placements.forEach(p => {
+      this.addDriftZone(p.x, p.z);
+    });
+  }
+
+  addDriftZone(x, z) {
+    const r = 14;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.5, r, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    ring.position.set(x, 0.15, z); ring.rotation.x = -Math.PI / 2; this.addObj(ring);
+    const textGeo = new THREE.PlaneGeometry(8, 2);
+    const textMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+    const text = new THREE.Mesh(textGeo, textMat);
+    text.position.set(x, 0.25, z); text.rotation.x = -Math.PI / 2; this.addObj(text);
+    this.driftZones.push({ x, z, r, active: false, score: 0 });
   }
 
   addLights(scene) {
@@ -370,40 +421,6 @@ export class GameScene {
     this.createExhaust();
     this.createNitrousFlame();
     this.createSpeedLines();
-  }
-
-  spawnCharacter() {
-    const char = CHARACTERS[this.selectedChar] || CHARACTERS[0];
-    const tex = new THREE.TextureLoader().load(char.tex);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const skinMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.0 });
-    const group = new THREE.Group();
-    const bodyMat = skinMat;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), bodyMat);
-    head.position.set(0, 1.1, 0);
-    group.add(head);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.55, 0.25), bodyMat);
-    torso.position.set(0, 0.7, 0);
-    group.add(torso);
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.8 });
-    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), legMat);
-    lLeg.position.set(-0.1, 0.35, 0);
-    group.add(lLeg);
-    const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), legMat);
-    rLeg.position.set(0.1, 0.35, 0);
-    group.add(rLeg);
-    const armMat = bodyMat.clone();
-    const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
-    lArm.position.set(-0.28, 0.85, 0);
-    group.add(lArm);
-    const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), armMat);
-    rArm.position.set(0.28, 0.85, 0);
-    group.add(rArm);
-    group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    group.scale.set(2.5, 2.5, 2.5);
-    group.position.set(0, 0, 2.5);
-    this.character = group;
-    this.manager.scene.add(group);
   }
 
   createHeadlights(scene) {
@@ -581,7 +598,6 @@ export class GameScene {
       <div style="position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:6px">
         <div class="hud-panel" style="padding:8px 14px">
           <div id="hud-car" style="font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#44aaff;letter-spacing:1px;text-transform:uppercase"></div>
-          <div id="hud-character" style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;color:#ffaa44;letter-spacing:0.5px;margin-top:2px"></div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
             <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
               <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><path d="M2 14L4 6h8l2 8" stroke="#ffcc00" stroke-width="1.5" stroke-linecap="round"/><circle cx="5.5" cy="14" r="1.5" fill="#ffcc00"/><circle cx="10.5" cy="14" r="1.5" fill="#ffcc00"/><path d="M6 6V3a1 1 0 011-1h2a1 1 0 011 1v3" stroke="#ffcc00" stroke-width="1.2"/></svg>
@@ -596,6 +612,16 @@ export class GameScene {
             <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
               <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#ffcc00" stroke-width="1.5"/><path d="M8 4v5" stroke="#ffcc00" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11" r="1" fill="#ffcc00"/></svg>
               <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#ffcc00"><span id="hud-coins">0</span></span>
+            </div>
+            <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
+              <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2h12v12H2z" stroke="#ff44ff" stroke-width="1.5"/><path d="M5 5h6v6H5z" stroke="#ff44ff" stroke-width="1.2"/></svg>
+              <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#ff44ff"><span id="hud-speed-trap">0</span><span style="font-size:9px;color:#883388">km/h</span></span>
+              <div class="stat-bar" style="width:50px"><div id="hud-speed-trap-bar" class="stat-fill" style="width:0%;background:#ff44ff"></div></div>
+            </div>
+            <div class="hud-panel-light" style="padding:6px 10px;display:flex;align-items:center;gap:6px">
+              <svg class="stat-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#ffaa00" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="#ffaa00" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span style="font-family:'Orbitron',monospace;font-size:13px;font-weight:700;color:#ffaa00"><span id="hud-drift">0</span></span>
+              <div class="stat-bar" style="width:50px"><div id="hud-drift-bar" class="stat-fill" style="width:0%;background:#ffaa00"></div></div>
             </div>
           </div>
           <div id="hud-zone" style="margin-top:4px;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:600;color:#88ff88;letter-spacing:1px;text-transform:uppercase;min-height:14px"></div>
@@ -711,6 +737,7 @@ export class GameScene {
         <div class="help-row"><span class="help-key">V</span><span class="help-desc">Zoom Camera</span></div>
         <div class="help-row"><span class="help-key">MOUSE</span><span class="help-desc">Look Around (360°)</span></div>
         <div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Pause / Exit Pointer Lock</span></div>
+        <div class="help-row"><span class="help-key">ZONES</span><span class="help-desc">Pink rings = Speed Traps, Orange rings = Drift Zones</span></div>
         <button class="help-close" id="help-close-btn">CLOSE</button>
       </div>
     `;
@@ -720,7 +747,6 @@ export class GameScene {
     document.body.appendChild(pm);
 
     this.hudEls.car = document.getElementById('hud-car');
-    this.hudEls.character = document.getElementById('hud-character');
     this.hudEls.speed = document.getElementById('hud-speed-val');
     this.hudEls.speedBar = document.getElementById('speedo-needle');
     this.hudEls.fuel = document.getElementById('hud-fuel');
@@ -733,6 +759,10 @@ export class GameScene {
     this.hudEls.players = document.getElementById('hud-players');
     this.hudEls.dmgFlash = document.body;
     this.hudEls.coins = document.getElementById('hud-coins');
+    this.hudEls.speedTrap = document.getElementById('hud-speed-trap');
+    this.hudEls.speedTrapBar = document.getElementById('hud-speed-trap-bar');
+    this.hudEls.drift = document.getElementById('hud-drift');
+    this.hudEls.driftBar = document.getElementById('hud-drift-bar');
     this.hudEls.timer = document.getElementById('hud-timer');
     this.hudEls.laps = document.getElementById('hud-laps');
     this.hudEls.best = document.getElementById('hud-best');
@@ -780,10 +810,6 @@ export class GameScene {
     if (this.hudEls.car && this.currentCar) {
       const carName = (this.multi ? '🌐 ' : '') + this.currentCar.name.toUpperCase();
       this.hudEls.car.textContent = carName;
-    }
-    if (this.hudEls.character) {
-      const char = CHARACTERS[this.selectedChar] || CHARACTERS[0];
-      this.hudEls.character.textContent = char.name;
     }
   }
 
@@ -854,19 +880,12 @@ export class GameScene {
     this.manager.camera.position.lerp(targetCamPos, 0.06);
     this.manager.camera.lookAt(this.cameraTarget);
 
-    if (this.character && this.currentCar) {
-      this.character.position.set(
-        this.currentCar.mesh.position.x,
-        0,
-        this.currentCar.mesh.position.z + 2.5
-      );
-      this.character.rotation.y = this.currentCar.mesh.rotation.y;
-    }
-
     this.applyScreenShake();
 
     this.coinUpdate(dt);
     this.driftUpdate(dt);
+    this.speedTrapUpdate(dt);
+    this.driftZoneUpdate(dt);
     this.updateExhaust(dt);
     this.updateNitrous(dt);
     this.timeTrialUpdate(dt);
@@ -906,7 +925,22 @@ export class GameScene {
     if (this.hudEls.zone) {
       if (this.inRepairZone) this.hudEls.zone.textContent = '● REPAIRING';
       else if (this.inFuelZone) this.hudEls.zone.textContent = '● REFUELING';
+      else if (this.speedTraps.some(t => t.triggered)) this.hudEls.zone.textContent = '⚡ SPEED RECORD';
+      else if (this.driftZones.some(z => z.active)) this.hudEls.zone.textContent = '🔥 DRIFT ZONE';
       else this.hudEls.zone.textContent = '';
+    }
+    if (this.hudEls.speedTrap) {
+      this.hudEls.speedTrap.textContent = Math.round(this.topSpeedRecord);
+      if (this.hudEls.speedTrapBar) {
+        const pct = Math.min(100, (this.topSpeedRecord / (CONFIG.car.maxSpeed * CONFIG.car.boostMultiplier * 3.6)) * 100);
+        this.hudEls.speedTrapBar.style.width = pct + '%';
+      }
+    }
+    if (this.hudEls.drift) {
+      this.hudEls.drift.textContent = Math.round(this.driftZoneScore);
+      if (this.hudEls.driftBar) {
+        this.hudEls.driftBar.style.width = Math.min(100, this.driftZoneScore / 50) + '%';
+      }
     }
     if (this.hudEls.time) {
       const h = Math.floor(this.dayTime);
@@ -1052,6 +1086,21 @@ export class GameScene {
       ctx.fillRect(cx + b.x * scale - 1, cy + b.z * scale - 1, 3, 3);
     });
 
+    this.speedTraps.forEach(t => {
+      ctx.fillStyle = 'rgba(255,68,255,0.6)';
+      ctx.beginPath();
+      ctx.arc(cx + t.x * scale, cy + t.z * scale, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    this.driftZones.forEach(z => {
+      ctx.strokeStyle = z.active ? 'rgba(255,170,0,0.9)' : 'rgba(255,170,0,0.4)';
+      ctx.lineWidth = z.active ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(cx + z.x * scale, cy + z.z * scale, 4, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
     this.coins.forEach(c => {
       if (c.collected) return;
       ctx.fillStyle = '#ffcc00';
@@ -1121,6 +1170,53 @@ export class GameScene {
 
     this.sound.updateTire(drifting ? Math.min(1, (speed - 15) / 30) : 0);
     if (!drifting) this.sound.stopTire();
+  }
+
+  speedTrapUpdate(dt) {
+    if (!this.currentCar || this.paused) return;
+    const car = this.currentCar;
+    const speedKmh = Math.abs(car.speed) * 3.6;
+    this.speedTraps.forEach(trap => {
+      if (trap.triggered) return;
+      const d = Math.sqrt((car.mesh.position.x - trap.x) ** 2 + (car.mesh.position.z - trap.z) ** 2);
+      if (d < trap.r) {
+        trap.triggered = true;
+        if (speedKmh > this.topSpeedRecord) {
+          this.topSpeedRecord = speedKmh;
+          this.showSpeedRecord(speedKmh);
+        }
+      }
+    });
+  }
+
+  driftZoneUpdate(dt) {
+    if (!this.currentCar || this.paused) return;
+    const car = this.currentCar;
+    const speed = Math.abs(car.speed);
+    const turning = this.input.left || this.input.right;
+    const drifting = speed > 15 && turning;
+    this.driftZones.forEach(zone => {
+      const d = Math.sqrt((car.mesh.position.x - zone.x) ** 2 + (car.mesh.position.z - zone.z) ** 2);
+      if (d < zone.r && drifting) {
+        zone.active = true;
+        const pts = Math.round(speed * dt * 2.5);
+        zone.score += pts;
+        this.driftZoneScore += pts;
+      } else {
+        zone.active = false;
+      }
+    });
+  }
+
+  showSpeedRecord(speed) {
+    const el = document.getElementById('speed-record');
+    if (el) { el.remove(); }
+    const d = document.createElement('div');
+    d.id = 'speed-record';
+    d.style.cssText = `position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);z-index:170;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:36px;color:#ff44ff;text-shadow:0 0 30px rgba(255,68,255,0.6);opacity:1;transition:opacity 0.5s ease`;
+    d.textContent = `SPEED RECORD ${Math.round(speed)} km/h`;
+    document.body.appendChild(d);
+    setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 600); }, 1800);
   }
 
   showDriftFlash() {
@@ -1299,7 +1395,6 @@ export class GameScene {
   exit() {
     this.unbindKeys();
     this.sound.stopEngine();
-    if (this.character) { this.manager.scene.remove(this.character); this.character = null; }
     if (this._touchControls) this._touchControls.remove();
     if (this._speedLineContainer) this._speedLineContainer.remove();
     if (this._minimapEl) this._minimapEl.remove();
@@ -1320,6 +1415,8 @@ export class GameScene {
     this.sceneObjects = [];
     this.buildings = [];
     this.coins = [];
+    this.speedTraps = [];
+    this.driftZones = [];
     this.manager.scene.background = null;
     this.manager.scene.fog = null;
     const hud = document.getElementById('hud'); if (hud) hud.remove();
