@@ -14,6 +14,7 @@ export class Car {
     this.mesh.rotation.y = 0;
     this.occupied = false;
     this.boost = false;
+    this.bobTime = 0;
 
     this.damage = 0;
     this.maxDamage = 100;
@@ -52,6 +53,12 @@ export class Car {
 
     this.mesh.position.x += Math.sin(this.mesh.rotation.y) * this.speed * dt;
     this.mesh.position.z += Math.cos(this.mesh.rotation.y) * this.speed * dt;
+
+    this.bobTime += dt * (6 + Math.abs(this.speed) * 0.4);
+    const bump = Math.sin(this.bobTime) * 0.03 + Math.sin(this.bobTime * 2.3) * 0.015;
+    const lean = Math.abs(this.speed) > 1 ? Math.sin(this.mesh.rotation.y) * Math.min(0.04, Math.abs(this.speed) * 0.0008) : 0;
+    this.mesh.rotation.z = lean;
+    this.mesh.position.y = bump;
 
     const hw = CONFIG.world.half - 10;
     this.mesh.position.x = Math.max(-hw, Math.min(hw, this.mesh.position.x));
