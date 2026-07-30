@@ -455,6 +455,7 @@ export class GameScene {
       else if (k === ' ') { e.preventDefault(); this.input.boost = true; }
       else if (k === 'v') { e.preventDefault(); this.camZoom = !this.camZoom; }
       else if (k === 'escape') { this.togglePause(); }
+      else if (k === 'h') { const ho = document.getElementById('help-overlay'); if (ho) ho.classList.toggle('visible'); }
     };
     this._ku = (e) => {
       const k = e.key.toLowerCase();
@@ -570,6 +571,7 @@ export class GameScene {
         </div>
         ${this.multi ? `<div class="hud-panel" style="padding:6px 12px"><div id="hud-players" style="font-family:'Rajdhani',sans-serif;font-size:10px;color:#888"></div></div>` : ''}
         <button id="hud-share" style="padding:4px 10px;font-size:10px;background:rgba(255,255,255,0.08);color:#888;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;pointer-events:auto">📤 Share</button>
+        <button id="hud-help" style="padding:4px 10px;font-size:10px;background:rgba(255,255,255,0.08);color:#888;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;pointer-events:auto">? HELP</button>
         <div id="share-toast" style="font-family:'Rajdhani',sans-serif;font-size:10px;color:#44ff44;opacity:0;transition:opacity 0.3s">Link copied!</div>
       </div>
 
@@ -587,7 +589,7 @@ export class GameScene {
       <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%)">
         <div class="hud-panel" style="padding:4px 12px">
           <div class="key-hint">
-            <kbd>W</kbd> Drive &nbsp;<kbd>A</kbd><kbd>D</kbd> Steer &nbsp;<kbd>Space</kbd> Boost &nbsp;<kbd>V</kbd> Zoom &nbsp;<kbd>Esc</kbd> Pause
+            <kbd>W</kbd> Drive &nbsp;<kbd>A</kbd><kbd>D</kbd> Steer &nbsp;<kbd>Space</kbd> Boost &nbsp;<kbd>V</kbd> Zoom &nbsp;<kbd>H</kbd> Help &nbsp;<kbd>Esc</kbd> Pause
           </div>
         </div>
       </div>
@@ -689,6 +691,12 @@ export class GameScene {
     this.hudEls.timer = document.getElementById('hud-timer');
     this.hudEls.laps = document.getElementById('hud-laps');
     this.hudEls.best = document.getElementById('hud-best');
+
+    const helpBtn = document.getElementById('hud-help');
+    if (helpBtn) helpBtn.onclick = () => {
+      const ho = document.getElementById('help-overlay');
+      if (ho) ho.classList.toggle('visible');
+    };
 
     const shareBtn = document.getElementById('hud-share');
     if (shareBtn) shareBtn.onclick = () => this.shareGame();
@@ -1254,6 +1262,7 @@ export class GameScene {
     this.manager.scene.fog = null;
     const hud = document.getElementById('hud'); if (hud) hud.remove();
     const pm = document.getElementById('pause-menu'); if (pm) pm.remove();
+    const ho = document.getElementById('help-overlay'); if (ho) ho.remove();
     const ct = document.getElementById('countdown'); if (ct) ct.remove();
     const df = document.getElementById('drift-flash'); if (df) df.remove();
     if (this._hudStyle) this._hudStyle.remove();
