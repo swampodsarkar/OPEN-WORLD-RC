@@ -163,7 +163,7 @@ export class GameScene {
     };
 
     const orients = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-    const inn = ROAD_INN, out = ROAD_OUT;
+    const inn = ROAD_INN, out = ROAD_OUT, rw = ROAD_W;
 
     for (let i = 0; i < 40; i++) {
       const name = buildingNames[Math.floor(Math.random() * buildingNames.length)];
