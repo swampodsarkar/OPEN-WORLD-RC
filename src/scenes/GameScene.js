@@ -1060,7 +1060,7 @@ export class GameScene {
   }
 
   updateExhaust(dt) {
-    if (!this.currentCar) return;
+    if (!this.currentCar || !this._exhaustParticles) return;
     const car = this.currentCar;
     const speed = Math.abs(car.speed);
     const show = speed > 5;
@@ -1070,25 +1070,23 @@ export class GameScene {
     const backZ = carPos.z - Math.cos(angle) * 1.5;
 
     this._exhaustParticles.forEach(p => {
-      if (show && p.life <= 0) {
-        p.mesh.position.set(backX + (Math.random() - 0.5) * 0.2, 0.1 + Math.random() * 0.1, backZ + (Math.random() - 0.5) * 0.2);
-        p.life = 0.3 + Math.random() * 0.4;
-        p.maxLife = p.life;
-        p.mesh.material.opacity = 0.3;
-        p.mesh.scale.set(1, 1, 1);
+      if (p.life <= 0) {
+        if (show && Math.random() < 0.3) {
+          p.mesh.position.set(backX + (Math.random() - 0.5) * 0.2, 0.1 + Math.random() * 0.1, backZ + (Math.random() - 0.5) * 0.2);
+          p.life = 0.3 + Math.random() * 0.4;
+          p.maxLife = p.life;
+          p.mesh.material.opacity = 0.3;
+          p.mesh.scale.set(1, 1, 1);
+        }
       }
       if (p.life > 0) {
         p.life -= dt;
         const t = p.life / p.maxLife;
         p.mesh.material.opacity = t * 0.3;
         p.mesh.position.y += dt * 0.1;
+        p.mesh.position.x += Math.sin(angle) * speed * dt * 0.3;
+        p.mesh.position.z += Math.cos(angle) * speed * dt * 0.3;
         p.mesh.scale.setScalar(1 + (1 - t) * 2);
-        if (show && p.life <= 0 && Math.random() < 0.1) {
-          p.mesh.position.set(backX + (Math.random() - 0.5) * 0.2, 0.1, backZ + (Math.random() - 0.5) * 0.2);
-          p.life = 0.3 + Math.random() * 0.4;
-          p.maxLife = p.life;
-          p.mesh.material.opacity = 0.3;
-        }
       }
     });
   }
