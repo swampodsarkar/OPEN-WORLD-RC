@@ -437,6 +437,20 @@ export class GameScene {
     this.speedTraps.push({ x, z, r, triggered: false });
   }
 
+  addDriftZone(x, z) {
+    const r = 14;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.5, r, 32),
+      new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+    );
+    ring.position.set(x, 0.15, z); ring.rotation.x = -Math.PI / 2; this.addObj(ring);
+    const arrowGeo = new THREE.PlaneGeometry(4, 1.5);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.position.set(x, 0.2, z); arrow.rotation.x = -Math.PI / 2; this.addObj(arrow);
+    this.driftZones.push({ x, z, r, active: false, score: 0 });
+  }
+
   spawnDriftZones() {
     const inn = ROAD_INN, out = ROAD_OUT;
     const placements = [
