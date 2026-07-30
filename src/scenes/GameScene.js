@@ -75,8 +75,13 @@ export class GameScene {
       this.selectedIdx = data.carIdx;
     }
     this.selectedColor = (data && data.color) || null;
+    this.cameraAngle = 0;
+    this.cameraOrbitDistance = CONFIG.camera.followDistance;
+    this.cameraOrbitHeight = CONFIG.camera.followHeight;
+    this.cameraTarget = new THREE.Vector3();
     this.buildScene();
     this.bindKeys();
+    this.bindMouse();
     this.bindTouch();
     this.createHUD();
     this.createMinimap();
@@ -370,7 +375,7 @@ export class GameScene {
       const hex = parseInt(this.selectedColor.replace('#', ''), 16);
       car.mesh.traverse(c => { if (c.isMesh && c.material) {
         const mats = Array.isArray(c.material) ? c.material : [c.material];
-        mats.forEach(m => { if (m.color) m.color.setHex(hex); });
+        mats.forEach(m => { if (m.color && !m.map) m.color.setHex(hex); });
       }});
     }
     this.prevPos = { x: 0, z: startZ };
@@ -489,7 +494,34 @@ export class GameScene {
     document.addEventListener('keyup', this._ku);
   }
 
-  unbindKeys() { document.removeEventListener('keydown', this._kd); document.removeEventListener('keyup', this._ku); }
+  unbindKeys() {
+    document.removeEventListener('keydown', this._kd);
+    document.removeEventListener('keyup', this._ku);
+    document.removeEventListener('mousemove', this._mm);
+    document.removeEventListener('mousedown', this._md);
+    document.removeEventListener('pointerlockchange', this._plc);
+    document.exitPointerLock();
+  }
+
+  bindMouse() {
+    const domElement = this.manager.renderer.domElement;
+    this._md = (e) => {
+      if (e.target === domElement || e.target === document.body) {
+        domElement.requestPointerLock();
+      }
+    };
+    document.addEventListener('mousedown', this._md);
+
+    this._mm = (e) => {
+      if (document.pointerLockElement === domElement || document.pointerLockElement === document.body) {
+        this.cameraAngle -= e.movementX * 0.003;
+      }
+    };
+    document.addEventListener('mousemove', this._mm);
+
+    this._plc = () => {};
+    document.addEventListener('pointerlockchange', this._plc);
+  }
 
   togglePause() {
     this.paused = !this.paused;
@@ -726,14 +758,19 @@ export class GameScene {
     this.prevPos.x = car.mesh.position.x;
     this.prevPos.z = car.mesh.position.z;
 
-    const fh = this.camZoom ? 3 : CONFIG.camera.followHeight;
-    const fd = this.camZoom ? 5 : CONFIG.camera.followDistance;
-    const cam = this.manager.camera;
-    const angle = car.mesh.rotation.y;
-    const behind = new THREE.Vector3(-Math.sin(angle) * fd, fh, -Math.cos(angle) * fd);
-    const target = new THREE.Vector3().copy(car.mesh.position).add(behind);
-    cam.position.lerp(target, CONFIG.camera.lerpSpeed);
-    cam.lookAt(car.mesh.position.x, 1, car.mesh.position.z);
+    const camDist = this.camZoom ? 5 : this.cameraOrbitDistance;
+    const camHeight = this.camZoom ? 2 : this.cameraOrbitHeight;
+
+    const dirX = -Math.sin(this.cameraAngle);
+    const dirZ = -Math.cos(this.cameraAngle);
+    this.cameraTarget.set(car.mesh.position.x, camHeight * 0.3, car.mesh.position.z);
+    const targetCamPos = new THREE.Vector3(
+      car.mesh.position.x + dirX * camDist,
+      camHeight,
+      car.mesh.position.z + dirZ * camDist
+    );
+    this.manager.camera.position.lerp(targetCamPos, 0.06);
+    this.manager.camera.lookAt(this.cameraTarget);
 
     this.applyScreenShake();
 
