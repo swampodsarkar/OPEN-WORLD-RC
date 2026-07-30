@@ -54,6 +54,7 @@ export class GameScene {
     this.particles = { exhaust: [], dust: [] };
     this.speedLines = [];
     this.nitrousFlame = null;
+    this.sensitivity = 0.003;
     this.touchInput = { forward: false, backward: false, left: false, right: false, boost: false };
     this.minimapCtx = null;
     this.timer = 0;
@@ -487,7 +488,7 @@ export class GameScene {
 
     this._mm = (e) => {
       if (document.pointerLockElement === domElement || document.pointerLockElement === document.body) {
-        this.cameraAngle -= e.movementX * 0.003;
+        this.cameraAngle -= e.movementX * this.sensitivity;
       }
     };
     document.addEventListener('mousemove', this._mm);
@@ -602,14 +603,30 @@ export class GameScene {
       <div style="text-align:center;color:#fff">
         <h1 style="font-size:52px;margin:0 0 6px;font-family:Orbitron,monospace;font-weight:900;color:#fff;text-shadow:0 0 30px rgba(68,170,255,0.3);letter-spacing:4px">PAUSED</h1>
         <div style="width:60px;height:2px;background:linear-gradient(90deg,transparent,#44aaff,transparent);margin:0 auto 24px"></div>
-        <button class="pause-btn" data-action="resume" style="background:linear-gradient(135deg,#44aaff,#2266cc)">▶ RESUME</button>
+        <button class="pause-btn" data-action="help">? CONTROLS</button>
+        <button class="pause-btn" data-action="resume" style="background:linear-gradient(135deg,#44aaff,#2266cc)">? RESUME</button>
         <button class="pause-btn" data-action="restart">↻ RESTART</button>
         <button class="pause-btn" data-action="select">🏎 CHANGE CAR</button>
         <button class="pause-btn" data-action="menu">⌂ MAIN MENU</button>
       </div>
+      <div id="pause-sens" style="margin-top:16px;color:#888;font-family:Rajdhani,sans-serif;font-size:13px;letter-spacing:1px">
+        Mouse Sensitivity
+        <input id="sens-slider" type="range" min="0.001" max="0.015" step="0.001" value="0.003" style="vertical-align:middle;width:120px;accent-color:#44aaff">
+        <span id="sens-val" style="color:#44aaff;font-family:Orbitron,monospace;font-size:11px">0.003</span>
+      </div>
       <style>
         .pause-btn { display:block; margin:8px auto; padding:12px 50px; font-size:18px; font-weight:600; color:#fff; border:none; border-radius:8px; cursor:pointer; width:240px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); transition:all 0.15s ease; font-family:inherit; letter-spacing:1px }
         .pause-btn:hover { background:rgba(255,255,255,0.15) !important; transform:scale(1.03); border-color:rgba(255,255,255,0.2) }
+        .help-overlay { position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);z-index:250;font-family:Rajdhani,sans-serif }
+        .help-overlay.visible { display:flex }
+        .help-box { background:rgba(10,10,30,0.95);border:1px solid rgba(68,170,255,0.15);border-radius:16px;padding:30px 40px;max-width:420px;width:90%;text-align:center;color:#fff }
+        .help-box h2 { font-family:Orbitron,monospace;font-size:22px;color:#44aaff;margin:0 0 16px;letter-spacing:3px }
+        .help-row { display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05) }
+        .help-row:last-child { border-bottom:none }
+        .help-key { font-family:Orbitron,monospace;font-size:11px;color:#ff6b35;background:rgba(255,107,53,0.1);padding:3px 10px;border-radius:4px;min-width:60px;text-align:center }
+        .help-desc { font-size:14px;color:#999;text-align:left }
+        .help-close { margin-top:16px;padding:8px 30px;font-size:14px;background:rgba(255,255,255,0.08);color:#888;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-family:Rajdhani,sans-serif;transition:all 0.15s }
+        .help-close:hover { background:rgba(255,255,255,0.15);color:#ccc }
       </style>
     `;
     pm.querySelectorAll('.pause-btn').forEach(b => {
@@ -619,9 +636,41 @@ export class GameScene {
           case 'restart': this.exit(); this.manager.start('game', { carIdx: this.selectedIdx }); break;
           case 'select': this.exit(); this.manager.start('select'); break;
           case 'menu': this.exit(); this.manager.start('menu'); break;
+          case 'help': helpOverlay.classList.add('visible'); break;
         }
       };
     });
+
+    const sensSlider = document.getElementById('sens-slider');
+    const sensVal = document.getElementById('sens-val');
+    if (sensSlider) {
+      sensSlider.value = this.sensitivity;
+      sensSlider.oninput = () => {
+        this.sensitivity = parseFloat(sensSlider.value);
+        if (sensVal) sensVal.textContent = this.sensitivity.toFixed(3);
+      };
+    }
+
+    const helpOverlay = document.createElement('div');
+    helpOverlay.id = 'help-overlay';
+    helpOverlay.className = 'help-overlay';
+    helpOverlay.innerHTML = `
+      <div class="help-box">
+        <h2>CONTROLS</h2>
+        <div class="help-row"><span class="help-key">W</span><span class="help-desc">Accelerate</span></div>
+        <div class="help-row"><span class="help-key">S</span><span class="help-desc">Brake / Reverse</span></div>
+        <div class="help-row"><span class="help-key">A</span><span class="help-desc">Steer Left</span></div>
+        <div class="help-row"><span class="help-key">D</span><span class="help-desc">Steer Right</span></div>
+        <div class="help-row"><span class="help-key">SPACE</span><span class="help-desc">Boost</span></div>
+        <div class="help-row"><span class="help-key">V</span><span class="help-desc">Zoom Camera</span></div>
+        <div class="help-row"><span class="help-key">MOUSE</span><span class="help-desc">Look Around (360°)</span></div>
+        <div class="help-row"><span class="help-key">ESC</span><span class="help-desc">Pause / Exit Pointer Lock</span></div>
+        <button class="help-close" id="help-close-btn">CLOSE</button>
+      </div>
+    `;
+    document.body.appendChild(helpOverlay);
+    document.getElementById('help-close-btn').onclick = () => helpOverlay.classList.remove('visible');
+    helpOverlay.onclick = (e) => { if (e.target === helpOverlay) helpOverlay.classList.remove('visible'); };
     document.body.appendChild(pm);
 
     this.hudEls.car = document.getElementById('hud-car');
