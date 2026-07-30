@@ -250,7 +250,7 @@ export class CarSelectScene {
     if (this.isLoading) return;
     this.isLoading = true;
     this.exit();
-    this.manager.start('preload', { mode: 'world', carIdx: this.selectedIdx, color: COLORS[this.selectedColor].hex, charIdx: this.selectedChar });
+    this.manager.start('loading', { carIdx: this.selectedIdx, color: COLORS[this.selectedColor].hex, charIdx: this.selectedChar });
   }
 
   update(dt) {

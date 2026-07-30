@@ -3,6 +3,7 @@ import { BootScene } from './BootScene.js';
 import { PreloadScene } from './PreloadScene.js';
 import { MainMenuScene } from './MainMenuScene.js';
 import { CarSelectScene } from './CarSelectScene.js';
+import { LoadingScene } from './LoadingScene.js';
 import { RoomScene } from './RoomScene.js';
 import { GameScene } from './GameScene.js';
 
@@ -20,6 +21,7 @@ export class SceneManager {
     this.add('preload', new PreloadScene(this));
     this.add('menu', new MainMenuScene(this));
     this.add('select', new CarSelectScene(this));
+    this.add('loading', new LoadingScene(this));
     this.add('rooms', new RoomScene(this));
     this.add('game', new GameScene(this));
   }
