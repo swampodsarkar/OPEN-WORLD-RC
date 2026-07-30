@@ -109,10 +109,14 @@ export class GameScene {
     this.dayTime = 9;
     this.updateSky(scene);
     this.addGround(scene);
-    this.addRoads(scene);
-    this.buildCity(scene);
-    this.addLights(scene);
-    this.spawnCar(scene);
+    if (this.multi) {
+      this.addRaceTrack(scene);
+    } else {
+      this.addRoads(scene);
+      this.buildCity(scene);
+      this.addLights(scene);
+      this.spawnCar(scene);
+    }
   }
 
   updateSky(scene) {
@@ -446,18 +450,224 @@ export class GameScene {
     });
   }
 
-  addDriftZone(x, z) {
-    const r = 14;
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(r - 0.5, r, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-    );
-    ring.position.set(x, 0.15, z); ring.rotation.x = -Math.PI / 2; this.addObj(ring);
-    const textGeo = new THREE.PlaneGeometry(8, 2);
-    const textMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-    const text = new THREE.Mesh(textGeo, textMat);
-    text.position.set(x, 0.25, z); text.rotation.x = -Math.PI / 2; this.addObj(text);
-    this.driftZones.push({ x, z, r, active: false, score: 0 });
+  addRaceTrack(scene) {
+    const trackLength = 200;
+    const trackWidth = 14;
+    const trackMat = new THREE.MeshStandardMaterial({ map: this.makeAsphaltTex(), roughness: 0.9, metalness: 0.01 });
+    const trackGeo = new THREE.PlaneGeometry(trackLength, trackWidth, 40, 8);
+    const pos = trackGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      pos.setZ(i, Math.sin(x * 0.3) * Math.cos(y * 0.4) * 0.04);
+    }
+    trackGeo.computeVertexNormals();
+
+    function rd(x, z, geo) {
+      const m = new THREE.Mesh(geo, trackMat);
+      m.position.set(x, 0.05, z);
+      m.rotation.x = -Math.PI / 2;
+      m.receiveShadow = true;
+      return m;
+    }
+
+    this.addObj(rd(0, 0, trackGeo));
+
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const dashGeo = new THREE.PlaneGeometry(2.5, 0.3);
+    for (let i = -10; i <= 10; i++) {
+      if (i % 2 === 0) continue;
+      const d = new THREE.Mesh(dashGeo, lineMat);
+      d.position.set(i * 9, 0.07, 0);
+      d.rotation.x = -Math.PI / 2;
+      this.addObj(d);
+    }
+
+    const edgeGeo = new THREE.PlaneGeometry(trackLength, 0.2);
+    const e1 = new THREE.Mesh(edgeGeo, lineMat);
+    e1.position.set(0, 0.07, -trackWidth / 2);
+    e1.rotation.x = -Math.PI / 2;
+    this.addObj(e1);
+    const e2 = new THREE.Mesh(edgeGeo, lineMat);
+    e2.position.set(0, 0.07, trackWidth / 2);
+    e2.rotation.x = -Math.PI / 2;
+    this.addObj(e2);
+
+    const startGeo = new THREE.PlaneGeometry(trackWidth, 4);
+    const startMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const startLine = new THREE.Mesh(startGeo, startMat);
+    startLine.position.set(0, 0.08, 0);
+    startLine.rotation.x = -Math.PI / 2;
+    this.addObj(startLine);
+    this.startLineZ = 0;
+
+    const sGeo = new THREE.PlaneGeometry(22, 1);
+    const sMat = new THREE.MeshBasicMaterial({ color: 0xff6b35, transparent: true, opacity: 0.3 });
+    const startZone = new THREE.Mesh(sGeo, sMat);
+    startZone.position.set(0, 0.09, 0);
+    startZone.rotation.x = -Math.PI / 2;
+    this.addObj(startZone);
+
+    this.raceCheckpoints = [];
+    for (let i = 0; i < 3; i++) {
+      this.raceCheckpoints.push({ x: -60 + i * 60, passed: false });
+    }
+
+    const checkpointGeo = new THREE.PlaneGeometry(trackWidth - 2, 2);
+    const checkpointMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.25 });
+    this.raceCheckpoints.forEach(cp => {
+      const m = new THREE.Mesh(checkpointGeo, checkpointMat);
+      m.position.set(cp.x, 0.09, 0);
+      m.rotation.x = -Math.PI / 2;
+      this.addObj(m);
+    });
+
+    this.trackBounds = { minX: -trackLength / 2, maxX: trackLength / 2, width: trackWidth };
+  }
+
+  createNameLabel(name) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.roundRect(0, 10, 256, 44, 12);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, 128, 32);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(3, 0.75, 1);
+    sprite.position.y = 2.2;
+    return sprite;
+  }
+
+  initMultiplayer(data) {
+    import('../services/FirebaseService.js').then(({ db, ref, set, onValue, off, update }) => {
+      const posRef = ref(db, `rooms/${this.roomId}/players/${this.playerId}`);
+      this.syncInterval = setInterval(() => {
+        if (this.currentCar) {
+          set(posRef, {
+            x: this.currentCar.mesh.position.x, z: this.currentCar.mesh.position.z,
+            rot: this.currentCar.mesh.rotation.y, speed: this.currentCar.speed,
+            carIdx: this.selectedIdx, connected: true,
+            damage: this.currentCar.damage, fuel: this.currentCar.fuel,
+            name: this.selectedDisplayName || 'Player'
+          });
+        }
+      }, 50);
+
+      const allPosRef = ref(db, `rooms/${this.roomId}/players`);
+      this.posListener = onValue(allPosRef, (snap) => {
+        const players = snap.val(); if (!players) return;
+        Object.entries(players).forEach(([pid, p]) => {
+          if (pid === this.playerId) return;
+          if (!this.ghostCars[pid]) {
+            const model = this.manager.models[CAR_IDS[p.carIdx] || CAR_IDS[0]];
+            if (model) {
+              const ghost = new Car(this.manager.scene, model, p.x || 0, p.z || 0, p.name || 'Player');
+              ghost.mesh.traverse(c => { if (c.isMesh) { c.material = c.material.clone(); c.material.transparent = true; c.material.opacity = 0.7; } });
+              const label = this.createNameLabel(p.name || 'Player');
+              ghost.mesh.add(label);
+              this.ghostCars[pid] = ghost;
+            }
+          } else {
+            const ghost = this.ghostCars[pid];
+            ghost.mesh.position.x = p.x || 0; ghost.mesh.position.z = p.z || 0;
+            ghost.mesh.rotation.y = p.rot || 0; ghost.speed = p.speed || 0;
+          }
+        });
+        Object.keys(this.ghostCars).forEach(pid => { if (!players[pid]) { this.manager.scene.remove(this.ghostCars[pid].mesh); delete this.ghostCars[pid]; } });
+      });
+
+      const roomRef = ref(db, `rooms/${this.roomId}`);
+      this.raceListener = onValue(roomRef, (snap) => {
+        const data = snap.val();
+        if (!data) return;
+        if (data.started && !this.raceStarted) {
+          this.startRace();
+        }
+        if (data.countdown !== undefined && data.countdown !== this._lastCountdown) {
+          this._lastCountdown = data.countdown;
+          this.showCountdown(data.countdown);
+        }
+      });
+
+      const myRef = ref(db, `rooms/${this.roomId}/players/${this.playerId}`);
+      this._readyListener = onValue(myRef, (snap) => {
+        const p = snap.val();
+        if (p && p.ready && !this.raceStarted) {
+          this.startRace();
+        }
+      });
+    });
+  }
+
+  showCountdown(n) {
+    const d = document.createElement('div');
+    d.id = 'countdown';
+    d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:1500;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:96px;color:#ff6b35;text-shadow:0 0 40px rgba(255,107,53,0.6);transition:opacity 0.2s';
+    d.textContent = n > 0 ? String(n) : 'GO!';
+    document.body.appendChild(d);
+    setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 250); }, 700);
+  }
+
+  startRace() {
+    if (this.raceStarted) return;
+    this.raceStarted = true;
+    this.raceFinished = false;
+    this.lapCount = 0;
+    this.checkpointIdx = 0;
+    this.timer = 0;
+    this.raceStartTime = performance.now();
+    if (this.currentCar) {
+      this.currentCar.fuel = Infinity;
+      this.currentCar.fuelConsumption = 0;
+    }
+    this.showCountdown(0);
+  }
+
+  update(dt) {
+    if (this.currentCar) this.currentCar.drive(this.input, dt);
+    this.coinUpdate(dt);
+    this.driftUpdate(dt);
+    this.speedTrapUpdate(dt);
+    this.driftZoneUpdate(dt);
+    this.updateExhaust(dt);
+    this.updateNitrous(dt);
+    this.timeTrialUpdate(dt);
+    this.drawMinimap();
+
+    if (this.multi && this.trackBounds && this.currentCar) {
+      const p = this.currentCar.mesh.position;
+      p.x = Math.max(this.trackBounds.minX + 1, Math.min(this.trackBounds.maxX - 1, p.x));
+      p.z = Math.max(-this.trackBounds.width / 2 + 1, Math.min(this.trackBounds.width / 2 - 1, p.z));
+    }
+
+    if (this.raceStarted && !this.raceFinished && this.currentCar) {
+      this.timer += dt;
+      this.checkRaceProgress();
+    }
+  }
+
+  checkRaceProgress() {
+    if (!this.currentCar || !this.raceCheckpoints.length) return;
+    const p = this.currentCar.mesh.position;
+    const cp = this.raceCheckpoints[this.checkpointIdx];
+    if (cp && Math.abs(p.x - cp.x) < 8) {
+      cp.passed = true;
+      this.checkpointIdx++;
+      if (this.checkpointIdx >= this.raceCheckpoints.length) {
+        this.lapCount++;
+        this.raceCheckpoints.forEach(c => c.passed = false);
+        this.checkpointIdx = 0;
+      }
+    }
   }
 
   addLights(scene) {
@@ -519,8 +729,12 @@ export class GameScene {
     const displayName = this.selectedDisplayName || CONFIG.cars[id] || id;
     const model = this.manager.models[id];
     if (!model) return;
-    const startZ = -(ROAD_INN + ROAD_W * 0.3);
-    const car = new Car(scene, model, 0, startZ, displayName);
+    let startX = 0, startZ = -(ROAD_INN + ROAD_W * 0.3);
+    if (this.multi) {
+      startX = (Math.random() - 0.5) * 4;
+      startZ = 0;
+    }
+    const car = new Car(scene, model, startX, startZ, displayName);
     this.currentCar = car;
     if (this.isCreative) {
       car.fuel = Infinity;
@@ -536,7 +750,7 @@ export class GameScene {
         mats.forEach(m => { if (m.color && !m.map) m.color.setHex(hex); });
       }});
     }
-    this.prevPos = { x: 0, z: startZ };
+    this.prevPos = { x: startX, z: startZ };
     car.occupy();
     this.syncHUD();
     this.createHeadlights(scene);
