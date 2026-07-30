@@ -139,7 +139,6 @@ export class CarSelectScene {
         <div style="display:flex;gap:16px;align-items:center;justify-content:center;margin-bottom:18px;animation:fadeUp 0.6s ease-out 0.3s both">
           <button id="sel-prev" style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.05);color:#fff;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:18px;transition:all 0.2s;backdrop-filter:blur(6px)">◀</button>
           <div style="position:relative;width:180px;height:110px;border-radius:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);overflow:hidden;backdrop-filter:blur(4px)">
-            <div id="sel-preview-label" style="position:absolute;bottom:0;left:0;right:0;padding:7px;background:linear-gradient(transparent,rgba(0,0,0,0.7));font-family:Orbitron,monospace;font-size:12px;font-weight:700;color:#fff;letter-spacing:2px;text-transform:uppercase">SEDAN</div>
             <div id="sel-preview-color" style="position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,0.25);background:${COLORS[0].hex};box-shadow:0 0 8px ${COLORS[0].hex}">
             </div>
           </div>
@@ -237,10 +236,8 @@ export class CarSelectScene {
       this.manager.scene.add(this.carPreview);
     }
 
-    const nameEl = document.getElementById('sel-preview-label');
     const countEl = document.getElementById('sel-count');
     const colorDot = document.getElementById('sel-preview-color');
-    if (nameEl) nameEl.textContent = CAR_IDS[this.selectedIdx].replace(/-/g, ' ').toUpperCase();
     if (countEl) countEl.textContent = `${this.selectedIdx + 1} / ${CAR_IDS.length}`;
     if (colorDot) colorDot.style.background = COLORS[this.selectedColor].hex;
   }
