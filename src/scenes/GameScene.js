@@ -117,17 +117,17 @@ export class GameScene {
       const d = new THREE.Mesh(p(cw, dl), dashMat); d.position.set(-(inn + rw / 2), 0.06, t); d.rotation.x = -Math.PI / 2; this.addObj(d);
       const d2 = new THREE.Mesh(p(cw, dl), dashMat); d2.position.set((inn + rw / 2), 0.06, t); d2.rotation.x = -Math.PI / 2; this.addObj(d2); }
     const sw = 2, oe = out + 1.5, ie = inn - 1.5;
-    function swalk(x, z, w, h) { const m = new THREE.Mesh(p(w, h), sidewalkMat); m.position.set(x, 0.06, z); m.rotation.x = -Math.PI / 2; this.addObj(m); }
+    const swalk = (x, z, w, h) => { const m = new THREE.Mesh(p(w, h), sidewalkMat); m.position.set(x, 0.06, z); m.rotation.x = -Math.PI / 2; this.addObj(m); };
     swalk(0, -(oe + sw / 2), rl + sw * 2, sw); swalk(0, (oe + sw / 2), rl + sw * 2, sw);
     swalk(-(oe + sw / 2), 0, sw, rl + sw * 2); swalk((oe + sw / 2), 0, sw, rl + sw * 2);
     swalk(0, -(ie - sw / 2), rl - sw * 2, sw); swalk(0, (ie - sw / 2), rl - sw * 2, sw);
     swalk(-(ie - sw / 2), 0, sw, rl - sw * 2); swalk((ie - sw / 2), 0, sw, rl - sw * 2);
-    function curb(x, z, w, ry) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, 0.5), curbMat); m.position.set(x, 0.125, z); m.rotation.y = ry || 0; m.castShadow = true; this.addObj(m); }
+    const curb = (x, z, w, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, 0.5), curbMat); m.position.set(x, 0.125, z); m.rotation.y = ry || 0; m.castShadow = true; this.addObj(m); };
     curb(0, -(oe + 0.25), rl + sw * 2); curb(0, (oe + 0.25), rl + sw * 2);
     curb(-(oe + 0.25), 0, sw, Math.PI / 2); curb((oe + 0.25), 0, sw, Math.PI / 2);
     curb(0, -(ie - 0.25), rl - sw * 2); curb(0, (ie - 0.25), rl - sw * 2);
     curb(-(ie - 0.25), 0, sw, Math.PI / 2); curb((ie - 0.25), 0, sw, Math.PI / 2);
-    function xw(x, z, w, h) { const m = new THREE.Mesh(p(w, h), crossMat); m.position.set(x, 0.08, z); m.rotation.x = -Math.PI / 2; this.addObj(m); }
+    const xw = (x, z, w, h) => { const m = new THREE.Mesh(p(w, h), crossMat); m.position.set(x, 0.08, z); m.rotation.x = -Math.PI / 2; this.addObj(m); };
     xw(0, -(inn + rw / 2), rw * 0.5, 4); xw(0, (inn + rw / 2), rw * 0.5, 4);
     xw(-(inn + rw / 2), 0, 4, rw * 0.5); xw((inn + rw / 2), 0, 4, rw * 0.5);
     [[-(oe + sw / 2), -(oe + sw / 2)],[-(oe + sw / 2), (oe + sw / 2)],
