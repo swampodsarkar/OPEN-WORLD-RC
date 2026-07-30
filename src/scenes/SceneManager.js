@@ -30,8 +30,12 @@ export class SceneManager {
 
   start(key, data) {
     if (this.current) this.current.exit();
+    this.scene.background = null;
+    this.scene.fog = null;
     this.current = this.scenes[key];
-    this.current.enter(data);
+    if (this.current && this.current.enter) {
+      this.current.enter(data);
+    }
   }
 
   update(dt) {
