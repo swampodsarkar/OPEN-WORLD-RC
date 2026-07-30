@@ -54,9 +54,9 @@ export class Car {
     this.mesh.position.x += Math.sin(this.mesh.rotation.y) * this.speed * dt;
     this.mesh.position.z += Math.cos(this.mesh.rotation.y) * this.speed * dt;
 
-    this.bobTime += dt * (6 + Math.abs(this.speed) * 0.4);
-    const bump = Math.sin(this.bobTime) * 0.03 + Math.sin(this.bobTime * 2.3) * 0.015;
-    const lean = Math.abs(this.speed) > 1 ? Math.sin(this.mesh.rotation.y) * Math.min(0.04, Math.abs(this.speed) * 0.0008) : 0;
+    this.bobTime += dt * (4 + Math.abs(this.speed) * 0.25);
+    const bump = Math.sin(this.bobTime) * 0.015;
+    const lean = Math.abs(this.speed) > 1 ? Math.sin(this.mesh.rotation.y) * Math.min(0.025, Math.abs(this.speed) * 0.0005) : 0;
     this.mesh.rotation.z = lean;
     this.mesh.position.y = bump;
 
