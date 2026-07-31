@@ -1,10 +1,8 @@
 import { db, ref, set, push, onValue, off, remove, get } from '../services/FirebaseService.js';
 
 const CAR_IDS = [
-  'sedan', 'sedan-sports', 'suv', 'suv-luxury', 'taxi', 'police',
-  'ambulance', 'race', 'race-future', 'van', 'truck', 'truck-flat',
-  'delivery', 'delivery-flat', 'firetruck', 'garbage-truck', 'tractor',
-  'tractor-shovel', 'hatchback-sports'
+  'race', 'race-future', 'sedan-sports', 'hatchback-sports',
+  'suv-luxury', 'sedan', 'suv', 'truck', 'police', 'taxi'
 ];
 
 export class RoomScene {

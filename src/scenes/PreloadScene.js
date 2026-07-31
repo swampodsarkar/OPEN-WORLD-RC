@@ -3,10 +3,8 @@ import { CONFIG } from '../config.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const carList = [
-  'sedan', 'sedan-sports', 'suv', 'suv-luxury', 'taxi', 'police',
-  'ambulance', 'race', 'race-future', 'van', 'truck', 'truck-flat',
-  'delivery', 'delivery-flat', 'firetruck', 'garbage-truck', 'tractor',
-  'tractor-shovel', 'hatchback-sports'
+  'race', 'race-future', 'sedan-sports', 'hatchback-sports',
+  'suv-luxury', 'sedan', 'suv', 'truck', 'police', 'taxi'
 ];
 
 const cityBuildings = [
