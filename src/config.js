@@ -6,8 +6,8 @@ export const CONFIG = {
     half: 1000
   },
   road: {
-    outerHalf: 400,
-    innerHalf: 280,
+    edgeHalf: 400,
+    width: 26,
     barrierHeight: 3,
     barrierWidth: 1,
     laneWidth: 3.5

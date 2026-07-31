@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 const carList = [
   'race', 'race-future', 'sedan-sports', 'hatchback-sports',
@@ -34,10 +35,13 @@ const LOADING_TIPS = [
   'Tip: Buildings cause damage — watch out!'
 ];
 
+const CHARACTER_MODEL = 'assets/characters/characterMedium.fbx';
+const CHARACTER_SKINS = ['criminalMaleA', 'cyborgFemaleA', 'skaterFemaleA', 'skaterMaleA'];
+
 export class PreloadScene {
   constructor(manager) {
     this.manager = manager;
-    this.totalModels = carList.length + cityBuildings.length;
+    this.totalModels = carList.length + cityBuildings.length + 1 + CHARACTER_SKINS.length;
     this.completed = 0;
     this.startTime = Date.now();
     this.tipInterval = null;
@@ -133,6 +137,42 @@ export class PreloadScene {
     };
 
     loadBatch();
+    this.loadCharacters(skyLoaded, skyboxList);
+  }
+
+  loadCharacters(skyLoaded, skyboxList) {
+    const done = () => {
+      if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();
+    };
+    this.manager.characterModel = null;
+    this.manager.characterSkins = {};
+
+    const fbxLoader = new FBXLoader();
+    const texLoader = new THREE.TextureLoader();
+
+    fbxLoader.load(CHARACTER_MODEL, (object) => {
+      this.manager.characterModel = object;
+      this.completed++;
+      this.updateBar();
+      done();
+    }, null, () => {
+      this.completed++;
+      this.updateBar();
+      done();
+    });
+
+    CHARACTER_SKINS.forEach(name => {
+      texLoader.load(`assets/characters/skins/${name}.png`, (tex) => {
+        this.manager.characterSkins[name] = tex;
+        this.completed++;
+        this.updateBar();
+        done();
+      }, null, () => {
+        this.completed++;
+        this.updateBar();
+        done();
+      });
+    });
   }
 
   showWorldLoading() {
