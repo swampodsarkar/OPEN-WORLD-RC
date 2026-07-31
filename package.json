@@ -1,7 +1,7 @@
 {
-  "name": "openworld-drive",
+  "name": "nitro-roam",
   "version": "1.0.0",
-  "description": "3D Open World Driving Game",
+  "description": "NITRO ROAM - 3D Open World Driving Game",
   "type": "module",
   "scripts": {
     "dev": "vite",

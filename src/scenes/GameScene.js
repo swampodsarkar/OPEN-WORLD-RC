@@ -43,7 +43,7 @@ export class GameScene {
     this.hemiLight = null;
     this.headlights = [];
     this.skyDome = null;
-    this.sound = new SoundService();
+    this.sound = manager.sound || new SoundService();
     this.coins = [];
     this.coinCount = 0;
     this.driftScore = 0;
@@ -103,6 +103,9 @@ export class GameScene {
     this.spawnCoins();
     this.initCheckpoints();
     if (this.multi) this.initMultiplayer(data);
+    if (this.manager.crazyGames) this.manager.crazyGames.gameplayStart();
+    this._visHandler = () => { if (document.hidden && !this.paused) this.togglePause(); };
+    document.addEventListener('visibilitychange', this._visHandler);
   }
 
   addObj(obj) { this.sceneObjects.push(obj); this.manager.scene.add(obj); }
@@ -881,8 +884,20 @@ export class GameScene {
 
   togglePause() {
     this.paused = !this.paused;
+    if (this.paused && this.manager.crazyGames) this.manager.crazyGames.happyTime();
     const el = document.getElementById('pause-menu');
     if (el) el.style.display = this.paused ? 'flex' : 'none';
+  }
+
+  _nativeFullscreen() {
+    try {
+      const el = document.documentElement;
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (el.requestFullscreen) {
+        el.requestFullscreen();
+      }
+    } catch (e) {}
   }
 
   createHUD() {
@@ -987,6 +1002,35 @@ export class GameScene {
     `;
     document.body.appendChild(hud);
 
+    const ctrl = document.createElement('div');
+    ctrl.style.cssText = 'position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;pointer-events:auto';
+    ctrl.id = 'hud-controls';
+    const mkBtn = (id, label) => {
+      const b = document.createElement('button');
+      b.id = id;
+      b.textContent = label;
+      b.style.cssText = 'width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s ease';
+      b.onmouseenter = () => { b.style.background = 'rgba(255,255,255,0.15)'; };
+      b.onmouseleave = () => { b.style.background = 'rgba(0,0,0,0.55)'; };
+      return b;
+    };
+    const sndBtn = mkBtn('hud-sound', this.sound.muted ? '🔇' : '🔊');
+    sndBtn.onclick = () => {
+      this.sound.setMuted(!this.sound.muted);
+      sndBtn.textContent = this.sound.muted ? '🔇' : '🔊';
+    };
+    const fsBtn = mkBtn('hud-fullscreen', '⛶');
+    fsBtn.onclick = () => {
+      if (this.manager.crazyGames) {
+        this.manager.crazyGames.fullscreen().then(ok => { if (!ok) this._nativeFullscreen(); });
+      } else {
+        this._nativeFullscreen();
+      }
+    };
+    ctrl.appendChild(sndBtn);
+    ctrl.appendChild(fsBtn);
+    hud.appendChild(ctrl);
+
     document.body.classList.add('dmg-active');
 
     const pm = document.createElement('div');
@@ -998,6 +1042,7 @@ export class GameScene {
         <div style="width:60px;height:2px;background:linear-gradient(90deg,transparent,#44aaff,transparent);margin:0 auto 24px"></div>
         <button class="pause-btn" data-action="help">? CONTROLS</button>
         <button class="pause-btn" data-action="resume" style="background:linear-gradient(135deg,#44aaff,#2266cc)">? RESUME</button>
+        <button class="pause-btn reward-btn" data-action="reward" style="background:linear-gradient(135deg,#ffcc00,#ff8800);color:#111;font-weight:700">▶ WATCH AD · 2x COINS</button>
         <button class="pause-btn" data-action="restart">↻ RESTART</button>
         <button class="pause-btn" data-action="select">🏎 CHANGE CAR</button>
         <button class="pause-btn" data-action="menu">⌂ MAIN MENU</button>
@@ -1026,7 +1071,8 @@ export class GameScene {
       b.onclick = () => {
         switch (b.dataset.action) {
           case 'resume': this.paused = false; pm.style.display = 'none'; break;
-          case 'restart': this.exit(); this.manager.start('game', { carIdx: this.selectedIdx }); break;
+          case 'reward': this._showRewardedAd(pm); break;
+          case 'restart': this.paused = false; pm.style.display = 'none'; if (this.manager.crazyGames) this.manager.crazyGames.midgameAd(); this.exit(); this.manager.start('game', { carIdx: this.selectedIdx }); break;
           case 'select': this.exit(); this.manager.start('select'); break;
           case 'menu': this.exit(); this.manager.start('menu'); break;
           case 'help': helpOverlay.classList.add('visible'); break;
@@ -1617,6 +1663,47 @@ export class GameScene {
     this.screenShake = { intensity, duration };
   }
 
+  _showToast(msg, color = '#ffcc00') {
+    const el = document.getElementById('nitro-toast');
+    if (el) { el.remove(); }
+    const t = document.createElement('div');
+    t.id = 'nitro-toast';
+    t.style.cssText = `position:fixed;top:22%;left:50%;transform:translate(-50%,-50%);z-index:300;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:26px;color:${color};text-shadow:0 0 20px rgba(255,200,0,0.5);opacity:1;transition:opacity 0.6s ease;text-align:center;letter-spacing:2px`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 700); }, 2200);
+  }
+
+  _showRewardedAd(pm) {
+    const btn = pm.querySelector('.reward-btn');
+    if (!btn) return;
+    if (btn.dataset.loading) return;
+    btn.dataset.loading = '1';
+    const original = btn.textContent;
+    btn.textContent = 'LOADING AD…';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    const sdk = this.manager.crazyGames;
+    const promise = sdk ? sdk.rewardedAd() : Promise.resolve(false);
+    promise.then((rewarded) => {
+      if (rewarded === true) {
+        this.coinCount *= 2;
+        if (this.hudEls.coins) this.hudEls.coins.textContent = this.coinCount;
+        this._showToast('COINS x2!', '#ffcc00');
+        this.sound.playCoin();
+      } else {
+        this._showToast('AD NOT AVAILABLE', '#ff6b35');
+      }
+    }).catch(() => {
+      this._showToast('AD NOT AVAILABLE', '#ff6b35');
+    }).then(() => {
+      btn.dataset.loading = '';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = original;
+    });
+  }
+
   applyScreenShake() {
     if (this.screenShake.duration <= 0) return;
     const shake = this.screenShake;
@@ -1853,7 +1940,7 @@ export class GameScene {
   shareGame() {
     const url = window.location.href;
     if (navigator.share) {
-      navigator.share({ title: 'Open World Drive', text: 'Race with me!', url }).catch(() => {});
+      navigator.share({ title: 'NITRO ROAM', text: 'Race with me!', url }).catch(() => {});
     } else {
       navigator.clipboard.writeText(url).then(() => {
         const el = document.getElementById('share-toast');
@@ -1863,6 +1950,8 @@ export class GameScene {
   }
 
   exit() {
+    if (this._visHandler) { document.removeEventListener('visibilitychange', this._visHandler); this._visHandler = null; }
+    if (this.manager.crazyGames) this.manager.crazyGames.gameplayStop();
     this.unbindKeys();
     this.sound.stopEngine();
     if (this._touchControls) this._touchControls.remove();

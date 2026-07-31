@@ -45,6 +45,10 @@ export class MainMenuScene {
   }
 
   enter() {
+    if (this.manager.crazyGames) {
+      this.manager.crazyGames.gameplayStop();
+      this.manager.crazyGames.bannerAd();
+    }
     const d = document.createElement('div');
     d.id = 'menu-screen';
     d.style.cssText = 'position:fixed;inset:0;z-index:1000;overflow:hidden;font-family:Rajdhani,sans-serif;color:#fff;background:#0f2b2b';
@@ -122,10 +126,10 @@ export class MainMenuScene {
     title.style.cssText = 'display:flex;align-items:baseline;gap:12px';
     const t1 = document.createElement('span');
     t1.style.cssText = 'font-family:Orbitron,monospace;font-size:13px;color:#6688ff;letter-spacing:6px;opacity:0.8';
-    t1.textContent = 'OPEN WORLD';
+    t1.textContent = 'NITRO';
     const t2 = document.createElement('span');
     t2.style.cssText = 'font-family:Orbitron,monospace;font-size:26px;font-weight:900;background:linear-gradient(135deg,#ff6b35,#ffaa44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px';
-    t2.textContent = 'DRIVING';
+    t2.textContent = 'ROAM';
     title.appendChild(t1);
     title.appendChild(t2);
 
@@ -136,9 +140,55 @@ export class MainMenuScene {
     carName.textContent = this.getCarName(this.lastCarIdx);
     right.appendChild(carName);
 
+    const mkBtn = (label, fn) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s ease';
+      b.onmouseenter = () => { b.style.background = 'rgba(255,255,255,0.15)'; };
+      b.onmouseleave = () => { b.style.background = 'rgba(255,255,255,0.06)'; };
+      b.onclick = fn;
+      return b;
+    };
+    const snd = mkBtn('', () => {});
+    const syncSnd = () => {
+      const muted = (window.__nitroSound && window.__nitroSound.muted) || localStorage.getItem('nitroMuted') === '1';
+      snd.textContent = muted ? '🔇' : '🔊';
+    };
+    syncSnd();
+    snd.onclick = () => {
+      if (window.__nitroSound) {
+        window.__nitroSound.setMuted(!window.__nitroSound.muted);
+      } else {
+        const muted = localStorage.getItem('nitroMuted') === '1';
+        localStorage.setItem('nitroMuted', muted ? '0' : '1');
+      }
+      syncSnd();
+    };
+    right.appendChild(snd);
+
+    const fs = mkBtn('⛶', () => {
+      if (this.manager.crazyGames) {
+        this.manager.crazyGames.fullscreen().then(ok => { if (!ok) this._nativeFullscreen(); });
+      } else {
+        this._nativeFullscreen();
+      }
+    });
+    right.appendChild(fs);
+
     row.appendChild(title);
     row.appendChild(right);
     return row;
+  }
+
+  _nativeFullscreen() {
+    try {
+      const el = document.documentElement;
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (el.requestFullscreen) {
+        el.requestFullscreen();
+      }
+    } catch (e) {}
   }
 
   getCarName(idx) {

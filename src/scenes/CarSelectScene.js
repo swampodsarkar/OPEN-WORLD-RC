@@ -168,7 +168,7 @@ export class CarSelectScene {
 
     const titleMain = document.createElement('div');
     titleMain.style.cssText = 'font-family:Orbitron,monospace;font-size:44px;font-weight:900;background:linear-gradient(135deg,#ff6b35,#ffaa44,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 25px rgba(255,107,53,0.4));margin-bottom:4px;animation:fadeUp 0.6s ease-out 0.1s both';
-    titleMain.textContent = 'DRIVING';
+    titleMain.textContent = 'NITRO ROAM';
 
     const subtitle = document.createElement('div');
     subtitle.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:13px;color:#557;letter-spacing:4px;text-transform:uppercase;margin-bottom:18px;animation:fadeUp 0.6s ease-out 0.2s both';

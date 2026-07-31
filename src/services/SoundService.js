@@ -2,19 +2,27 @@ export class SoundService {
   constructor() {
     this.ctx = null;
     this.enabled = true;
+    this.muted = false;
     this.masterGain = null;
     this.engineOsc = null;
     this.engineGain = null;
     this.bgmGain = null;
     this.tireNoise = null;
     this.tireGain = null;
+    try { this.muted = localStorage.getItem('nitroMuted') === '1'; } catch (e) {}
+  }
+
+  setMuted(muted) {
+    this.muted = !!muted;
+    try { localStorage.setItem('nitroMuted', this.muted ? '1' : '0'); } catch (e) {}
+    if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : 0.3;
   }
 
   init() {
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.3;
+      this.masterGain.gain.value = this.muted ? 0 : 0.3;
       this.masterGain.connect(this.ctx.destination);
     } catch (e) { this.enabled = false; }
   }

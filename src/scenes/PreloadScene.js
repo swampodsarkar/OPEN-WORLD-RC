@@ -62,6 +62,8 @@ export class PreloadScene {
     this.completed = 0;
     this.startTime = Date.now();
 
+    if (this.manager.crazyGames) this.manager.crazyGames.loadingStart();
+
     const div = document.getElementById('overlay') || this.createOverlay();
     div.innerHTML = this.getLoadingHTML();
     div.style.display = 'flex';
@@ -252,6 +254,7 @@ export class PreloadScene {
 
   done() {
     if (this.tipInterval) { clearInterval(this.tipInterval); this.tipInterval = null; }
+    if (this.manager.crazyGames) this.manager.crazyGames.loadingStop();
     const wait = Math.max(0, 800 - (Date.now() - this.startTime));
     setTimeout(() => {
       if (this.barFill) this.barFill.style.width = '100%';
@@ -274,8 +277,8 @@ export class PreloadScene {
   getLoadingHTML() {
     return `
       <div style="text-align:center;color:#fff">
-        <div style="font-family:Orbitron,monospace;font-size:22px;color:#44aaff;letter-spacing:6px;text-transform:uppercase;margin-bottom:4px">Open World</div>
-        <div style="font-family:Orbitron,monospace;font-size:52px;font-weight:900;background:linear-gradient(135deg,#ff6b35,#ffaa44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:40px">DRIVING</div>
+        <div style="font-family:Orbitron,monospace;font-size:22px;color:#44aaff;letter-spacing:6px;text-transform:uppercase;margin-bottom:4px">NITRO</div>
+        <div style="font-family:Orbitron,monospace;font-size:52px;font-weight:900;background:linear-gradient(135deg,#ff6b35,#ffaa44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:40px">ROAM</div>
         <div style="position:relative;width:320px;height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin:0 auto">
           <div id="load-bar-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#44aaff,#2266cc);border-radius:4px;transition:width 0.2s ease"></div>
           <div id="load-bar-glow" style="position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,transparent,rgba(68,170,255,0.4),transparent);border-radius:4px;filter:blur(4px);transition:width 0.2s ease"></div>

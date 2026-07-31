@@ -1,4 +1,5 @@
-import { db, ref, set, push, onValue, off, remove, get } from '../services/FirebaseService.js';
+let _fb = null;
+const fb = () => (_fb ||= import('../services/FirebaseService.js'));
 
 const CAR_IDS = [
   'race', 'race-future', 'sedan-sports', 'hatchback-sports',
@@ -53,7 +54,8 @@ export class RoomScene {
     document.getElementById('room-name-input').onkeydown = (e) => { if (e.key === 'Enter') this.createRoom(); };
   }
 
-  loadRooms() {
+  async loadRooms() {
+    const { db, ref, onValue } = await fb();
     const roomsRef = ref(db, 'rooms');
     this.roomsListener = onValue(roomsRef, (snapshot) => {
       const data = snapshot.val();
@@ -92,11 +94,12 @@ export class RoomScene {
     });
   }
 
-  createRoom() {
+  async createRoom() {
     const nameInput = document.getElementById('room-name-input');
     const name = nameInput?.value.trim() || 'Driver';
     if (!name) { nameInput.focus(); return; }
     if (this.currentRoomId) return;
+    const { db, ref, push, set } = await fb();
     const roomsRef = ref(db, 'rooms');
     const newRoomRef = push(roomsRef);
     const roomId = newRoomRef.key;
@@ -117,7 +120,7 @@ export class RoomScene {
     this.enterLobby(name);
   }
 
-  joinRoom(roomId, roomData) {
+  async joinRoom(roomId, roomData) {
     const nameInput = document.getElementById('room-name-input');
     const name = nameInput?.value.trim() || 'Guest';
     if (!name) { nameInput.focus(); return; }
@@ -125,6 +128,7 @@ export class RoomScene {
     const players = roomData.players || {};
     const count = Object.keys(players).length;
     if (count >= (roomData.maxPlayers || 5)) return;
+    const { db, ref, set } = await fb();
     this.playerId = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
     this.playerName = name;
     const playerRef = ref(db, `rooms/${roomId}/players/${this.playerId}`);
@@ -136,7 +140,7 @@ export class RoomScene {
     this.enterLobby(name);
   }
 
-  enterLobby(name) {
+  async enterLobby(name) {
     document.getElementById('room-screen').innerHTML = `
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
         <h2 style="color:#44aaff;margin:0 0 6px">CO-OP FREE ROAM</h2>
@@ -150,6 +154,7 @@ export class RoomScene {
     document.getElementById('join-game-btn').onclick = () => this.startGame();
     document.getElementById('leave-room-btn').onclick = () => this.leaveRoom();
 
+    const { db, ref, onValue } = await fb();
     const playersRef = ref(db, `rooms/${this.currentRoomId}/players`);
     this.lobbyListener = onValue(playersRef, (snap) => {
       const players = snap.val();
@@ -165,8 +170,9 @@ export class RoomScene {
     });
   }
 
-  startGame() {
+  async startGame() {
     if (!this.currentRoomId) return;
+    const { db, ref, get } = await fb();
     const playersRef = ref(db, `rooms/${this.currentRoomId}/players`);
     get(playersRef).then((snap) => {
       const players = snap.val();
@@ -176,7 +182,8 @@ export class RoomScene {
     });
   }
 
-  leaveRoom() {
+  async leaveRoom() {
+    const { db, ref, remove, get } = await fb();
     if (this.currentRoomId && this.playerId) {
       remove(ref(db, `rooms/${this.currentRoomId}/players/${this.playerId}`));
       get(ref(db, `rooms/${this.currentRoomId}/players`)).then((snap) => {
@@ -188,7 +195,8 @@ export class RoomScene {
     this.manager.start('menu');
   }
 
-  cleanup() {
+  async cleanup() {
+    const { db, ref, off } = await fb();
     if (this.roomsListener) { off(ref(db, 'rooms'), this.roomsListener); this.roomsListener = null; }
     if (this.lobbyListener) { off(ref(db, `rooms/${this.currentRoomId}/players`), this.lobbyListener); this.lobbyListener = null; }
   }
@@ -196,9 +204,11 @@ export class RoomScene {
   exit() {
     this.cleanup();
     if (this.currentRoomId && this.playerId) {
-      remove(ref(db, `rooms/${this.currentRoomId}/players/${this.playerId}`));
-      get(ref(db, `rooms/${this.currentRoomId}/players`)).then((snap) => {
-        if (!snap.exists()) remove(ref(db, `rooms/${this.currentRoomId}`));
+      fb().then(({ db, ref, remove, get }) => {
+        remove(ref(db, `rooms/${this.currentRoomId}/players/${this.playerId}`));
+        get(ref(db, `rooms/${this.currentRoomId}/players`)).then((snap) => {
+          if (!snap.exists()) remove(ref(db, `rooms/${this.currentRoomId}`));
+        });
       });
     }
     const d = document.getElementById('room-screen');
