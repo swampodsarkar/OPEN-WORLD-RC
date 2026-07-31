@@ -1,22 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-
-const css = document.createElement('style');
-css.textContent = `
-  .fh-btn { padding:14px 48px; font-size:18px; font-weight:800; background:linear-gradient(135deg,#ff6b35,#ff8844); color:#fff; border:none; border-radius:10px; cursor:pointer; letter-spacing:3px; font-family:Rajdhani,sans-serif; box-shadow:0 4px 24px rgba(255,107,53,0.35); transition:all 0.15s ease; text-transform:uppercase; min-width:220px }
-  .fh-btn:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 8px 32px rgba(255,107,53,0.5) }
-  .fh-btn:active { transform:scale(0.97) }
-  .fh-btn-secondary { background:rgba(255,255,255,0.06); color:#aab; border:1px solid rgba(255,255,255,0.12); box-shadow:none }
-  .fh-btn-secondary:hover { background:rgba(255,255,255,0.1); color:#fff; box-shadow:0 4px 20px rgba(0,0,0,0.3) }
-  .fh-back { margin-top:14px; padding:10px 28px; font-size:13px; background:rgba(255,255,255,0.04); color:#667; border:1px solid rgba(255,255,255,0.08); border-radius:8px; cursor:pointer; font-family:Rajdhani,sans-serif; transition:all 0.15s; letter-spacing:1px }
-  .fh-back:hover { background:rgba(255,255,255,0.07); color:#aab }
-  .fh-slider { -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:3px; background:rgba(255,255,255,0.1); outline:none }
-  .fh-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:#ff6b35; cursor:pointer; box-shadow:0 0 10px rgba(255,107,53,0.5) }
-  .fh-option { padding:12px 18px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; color:#aab; cursor:pointer; font-family:Rajdhani,sans-serif; font-size:14px; font-weight:700; letter-spacing:1px; transition:all 0.15s; min-width:90px; text-align:center }
-  .fh-option:hover { background:rgba(255,255,255,0.08); color:#fff }
-  .fh-option.active { background:rgba(255,107,53,0.2); border-color:rgba(255,107,53,0.5); color:#ff8844; box-shadow:0 0 15px rgba(255,107,53,0.2) }
-`;
-document.head.appendChild(css);
+import { THEME, css } from '../styles/theme.js';
 
 export class MainMenuScene {
   constructor(manager) {
@@ -79,12 +63,12 @@ export class MainMenuScene {
     main.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:0';
 
     const playBtn = document.createElement('button');
-    playBtn.className = 'fh-btn';
+    playBtn.className = 'btn';
     playBtn.textContent = 'PLAY';
     playBtn.onclick = () => { this.exit(); this.manager.start('select'); };
 
     const worldBtn = document.createElement('button');
-    worldBtn.className = 'fh-btn fh-btn-secondary';
+    worldBtn.className = 'btn btn-secondary';
     worldBtn.textContent = 'WORLD MAP';
     worldBtn.style.minWidth = '280px';
     worldBtn.onclick = () => {
@@ -99,13 +83,13 @@ export class MainMenuScene {
     };
 
     const onlineBtn = document.createElement('button');
-    onlineBtn.className = 'fh-btn fh-btn-secondary';
+    onlineBtn.className = 'btn btn-secondary';
     onlineBtn.textContent = 'PLAY ONLINE';
     onlineBtn.style.minWidth = '280px';
     onlineBtn.onclick = () => { this.exit(); this.manager.start('rooms'); };
 
     const settingsBtn = document.createElement('button');
-    settingsBtn.className = 'fh-btn fh-btn-secondary';
+    settingsBtn.className = 'btn btn-secondary';
     settingsBtn.textContent = 'SETTINGS';
     settingsBtn.style.minWidth = '280px';
     settingsBtn.onclick = () => this.showSettings();
@@ -196,7 +180,7 @@ export class MainMenuScene {
       lbl.textContent = label;
       const slider = document.createElement('input');
       slider.type = 'range'; slider.min = min; slider.max = max; slider.step = step; slider.value = value;
-      slider.className = 'fh-slider'; slider.style.flex = '1';
+      slider.className = 'slider'; slider.style.flex = '1';
       const val = document.createElement('span');
       val.style.cssText = 'font-family:Orbitron,monospace;font-size:12px;color:#ff6b35;min-width:36px;text-align:right';
       val.textContent = Math.round(value * 100) + '%';

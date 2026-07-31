@@ -1,4 +1,4 @@
-import { db, ref, set, push, onValue, off, remove, get, child, update } from '../services/FirebaseService.js';
+import { db, ref, set, push, onValue, off, remove, get } from '../services/FirebaseService.js';
 
 const CAR_IDS = [
   'sedan', 'sedan-sports', 'suv', 'suv-luxury', 'taxi', 'police',
@@ -16,7 +16,6 @@ export class RoomScene {
     this.currentRoomId = null;
     this.playerName = '';
     this.lobbyListener = null;
-    this.roomListener = null;
   }
 
   enter() {
@@ -30,13 +29,12 @@ export class RoomScene {
     d.style.cssText = 'position:fixed;inset:0;display:flex;background:#0a0a1a;z-index:1000;font-family:Arial;color:#fff;flex-direction:column';
     d.innerHTML = `
       <div style="padding:20px;text-align:center">
-        <h1 style="font-size:32px;color:#44aaff;margin:0">ONLINE RACING</h1>
-        <p style="color:#666;margin:4px 0 16px">1v1 Race • Up to 5 players per room</p>
+        <h1 style="font-size:32px;color:#44aaff;margin:0">ONLINE CO-OP</h1>
+        <p style="color:#666;margin:4px 0 16px">Free Roam • Up to 5 players per room</p>
         <div style="margin-bottom:16px">
           <input id="room-name-input" type="text" placeholder="Your Name" maxlength="12" style="padding:8px 16px;font-size:16px;border-radius:6px;border:none;background:#222;color:#fff;width:200px;text-align:center">
         </div>
         <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
-          <button id="create-1v1-btn" style="padding:10px 24px;font-size:16px;background:#ff6b35;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">⚡ 1v1 RACE</button>
           <button id="create-room-btn" style="padding:10px 24px;font-size:16px;background:#44aaff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">+ CREATE ROOM</button>
         </div>
       </div>
@@ -52,10 +50,9 @@ export class RoomScene {
     document.body.appendChild(d);
     this.overlay = d;
 
-    document.getElementById('create-1v1-btn').onclick = () => this.createRoom(true);
-    document.getElementById('create-room-btn').onclick = () => this.createRoom(false);
+    document.getElementById('create-room-btn').onclick = () => this.createRoom();
     document.getElementById('room-back-btn').onclick = () => { this.exit(); this.manager.start('menu'); };
-    document.getElementById('room-name-input').onkeydown = (e) => { if (e.key === 'Enter') this.createRoom(false); };
+    document.getElementById('room-name-input').onkeydown = (e) => { if (e.key === 'Enter') this.createRoom(); };
   }
 
   loadRooms() {
@@ -77,14 +74,14 @@ export class RoomScene {
     entries.forEach(([roomId, room]) => {
       const players = room.players || {};
       const count = Object.keys(players).length;
-      const max = room.maxPlayers || (room.raceMode ? 2 : 5);
+      const max = room.maxPlayers || 5;
       const full = count >= max;
       const card = document.createElement('div');
       card.style.cssText = `display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#151525;border-radius:8px;border:1px solid ${full ? '#442' : '#1a2a3a'}`;
       card.innerHTML = `
         <div>
           <div style="font-weight:bold;color:#ddd">${room.name || 'Room'}</div>
-          <div style="font-size:12px;color:#888">${count}/${max} players • ${room.raceMode ? '1v1 Race' : 'Free Roam'}</div>
+          <div style="font-size:12px;color:#888">${count}/${max} players • Free Roam</div>
         </div>
         <button ${full ? 'disabled' : ''} class="join-btn" data-room="${roomId}" style="padding:6px 20px;font-size:14px;background:${full ? '#333' : '#44aaff'};color:#fff;border:none;border-radius:6px;cursor:${full ? 'not-allowed' : 'pointer'}">
           ${full ? 'FULL' : 'JOIN'}
@@ -97,7 +94,7 @@ export class RoomScene {
     });
   }
 
-  createRoom(raceMode) {
+  createRoom() {
     const nameInput = document.getElementById('room-name-input');
     const name = nameInput?.value.trim() || 'Driver';
     if (!name) { nameInput.focus(); return; }
@@ -108,21 +105,18 @@ export class RoomScene {
     this.playerId = 'p' + Date.now() + Math.random().toString(36).slice(2, 6);
     this.playerName = name;
     set(newRoomRef, {
-      name: name + (raceMode ? "'s 1v1 Race" : "'s Room"),
-      maxPlayers: raceMode ? 2 : 5,
-      raceMode: raceMode || false,
+      name: name + "'s Room",
+      maxPlayers: 5,
       createdAt: Date.now(),
-      countdown: 0,
-      started: false,
       players: {
         [this.playerId]: {
           name, carIdx: Math.floor(Math.random() * CAR_IDS.length),
-          x: 0, z: 0, rot: 0, speed: 0, connected: true, ready: false
+          x: 0, z: 0, rot: 0, speed: 0, connected: true
         }
       }
     });
     this.currentRoomId = roomId;
-    this.enterLobby(name, raceMode);
+    this.enterLobby(name);
   }
 
   joinRoom(roomId, roomData) {
@@ -138,24 +132,24 @@ export class RoomScene {
     const playerRef = ref(db, `rooms/${roomId}/players/${this.playerId}`);
     set(playerRef, {
       name, carIdx: Math.floor(Math.random() * CAR_IDS.length),
-      x: 0, z: 0, rot: 0, speed: 0, connected: true, ready: false
+      x: 0, z: 0, rot: 0, speed: 0, connected: true
     });
     this.currentRoomId = roomId;
-    this.enterLobby(name, roomData.raceMode);
+    this.enterLobby(name);
   }
 
-  enterLobby(name, raceMode) {
+  enterLobby(name) {
     document.getElementById('room-screen').innerHTML = `
       <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
-        <h2 style="color:#44aaff;margin:0 0 6px">${raceMode ? '⚡ 1v1 RACE LOBBY' : 'WAITING FOR PLAYERS'}</h2>
+        <h2 style="color:#44aaff;margin:0 0 6px">CO-OP FREE ROAM</h2>
         <p style="color:#666;font-size:12px;margin:0 0 18px">Room: ${this.currentRoomId}</p>
         <div id="lobby-players" style="margin-bottom:20px;color:#aaa;font-size:14px;width:260px;text-align:left">Loading...</div>
-        <button id="ready-btn" style="padding:14px 50px;font-size:20px;background:#44aaff;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">✓ READY</button>
+        <button id="join-game-btn" style="padding:14px 50px;font-size:20px;background:#44aaff;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700">🏎 ENTER WORLD</button>
         <p id="race-status" style="color:#666;font-size:12px;margin-top:12px;min-height:18px"></p>
         <button id="leave-room-btn" style="margin-top:20px;padding:8px 24px;font-size:14px;background:#333;color:#aaa;border:none;border-radius:6px;cursor:pointer">← LEAVE ROOM</button>
       </div>
     `;
-    document.getElementById('ready-btn').onclick = () => this.toggleReady();
+    document.getElementById('join-game-btn').onclick = () => this.startGame();
     document.getElementById('leave-room-btn').onclick = () => this.leaveRoom();
 
     const playersRef = ref(db, `rooms/${this.currentRoomId}/players`);
@@ -165,69 +159,22 @@ export class RoomScene {
       if (!el) return;
       if (!players) { el.textContent = 'No players'; return; }
       const list = Object.entries(players).map(([id, p]) =>
-        `<div style="padding:5px 0;display:flex;align-items:center;gap:8px">${id === this.playerId ? '⭐ ' : '· '}${p.name || 'Unknown'} ${id === this.playerId ? '(you)' : ''} ${p.ready ? '✅' : ''}</div>`
+        `<div style="padding:5px 0;display:flex;align-items:center;gap:8px">${id === this.playerId ? '⭐ ' : '· '}${p.name || 'Unknown'} ${id === this.playerId ? '(you)' : ''}</div>`
       ).join('');
       el.innerHTML = list;
-      if (raceMode) {
-        const readyCount = Object.values(players).filter(p => p.ready).length;
-        const statusEl = document.getElementById('race-status');
-        if (statusEl) statusEl.textContent = `${readyCount}/2 players ready`;
-        if (readyCount >= 2 && !this._countdownStarted) {
-          this._countdownStarted = true;
-          this.startCountdown();
-        }
-      }
+      const statusEl = document.getElementById('race-status');
+      if (statusEl) statusEl.textContent = `${Object.keys(players).length}/5 players in room`;
     });
-
-    const roomRef = ref(db, `rooms/${this.currentRoomId}`);
-    this.roomListener = onValue(roomRef, (snap) => {
-      const data = snap.val();
-      if (!data || data.started) {
-        if (data && data.started) {
-          off(roomRef);
-          this.cleanup();
-          this.exit();
-          this.manager.start('game', { roomId: this.currentRoomId, playerId: this.playerId, players: data.players, raceMode: !!data.raceMode });
-        }
-      }
-    });
-  }
-
-  toggleReady() {
-    if (!this.currentRoomId || !this.playerId) return;
-    const myRef = ref(db, `rooms/${this.currentRoomId}/players/${this.playerId}`);
-    get(myRef).then((snap) => {
-      const p = snap.val();
-      if (!p) return;
-      update(myRef, { ready: !p.ready });
-    });
-  }
-
-  startCountdown() {
-    let count = 3;
-    const roomRef = ref(db, `rooms/${this.currentRoomId}`);
-    const tick = () => {
-      if (count > 0) {
-        update(roomRef, { countdown: count });
-        count--;
-        setTimeout(tick, 1000);
-      } else {
-        update(roomRef, { countdown: 0, started: true });
-      }
-    };
-    tick();
   }
 
   startGame() {
     if (!this.currentRoomId) return;
-    const roomRef = ref(db, `rooms/${this.currentRoomId}`);
-    update(roomRef, { started: true });
     const playersRef = ref(db, `rooms/${this.currentRoomId}/players`);
     get(playersRef).then((snap) => {
       const players = snap.val();
       this.cleanup();
       this.exit();
-      this.manager.start('game', { roomId: this.currentRoomId, playerId: this.playerId, players, raceMode: true });
+      this.manager.start('game', { roomId: this.currentRoomId, playerId: this.playerId, players });
     });
   }
 
@@ -246,7 +193,6 @@ export class RoomScene {
   cleanup() {
     if (this.roomsListener) { off(ref(db, 'rooms'), this.roomsListener); this.roomsListener = null; }
     if (this.lobbyListener) { off(ref(db, `rooms/${this.currentRoomId}/players`), this.lobbyListener); this.lobbyListener = null; }
-    if (this.roomListener) { off(ref(db, `rooms/${this.currentRoomId}`), this.roomListener); this.roomListener = null; }
   }
 
   exit() {
@@ -261,6 +207,5 @@ export class RoomScene {
     if (d) d.remove();
     this.currentRoomId = null;
     this.playerId = null;
-    this._countdownStarted = false;
   }
 }
