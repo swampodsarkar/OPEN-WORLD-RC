@@ -19,7 +19,7 @@ export const THEME = {
 
 export const css = document.createElement('style');
 css.textContent = `
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+  @import url('/fonts/fonts.css');
 
   .ui-font { font-family: ${THEME.fontBody}; }
   .ui-font-head { font-family: ${THEME.fontHead}; }

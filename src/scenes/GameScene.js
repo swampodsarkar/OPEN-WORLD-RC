@@ -905,7 +905,7 @@ export class GameScene {
 
     const style = document.createElement('style');
     style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+      @import url('/fonts/fonts.css');
       #hud * { box-sizing:border-box }
       .hud-panel { background:rgba(0,0,0,0.55); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.08); border-radius:12px }
       .hud-panel-light { background:rgba(0,0,0,0.35); backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,0.06); border-radius:10px }
