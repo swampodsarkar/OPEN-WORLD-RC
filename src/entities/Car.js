@@ -74,15 +74,15 @@ export class Car {
 
      const rx = Math.abs(this.mesh.position.z);
      const ry = Math.abs(this.mesh.position.x);
-     const onHRoad = rx <= ROAD_EDGE && ry <= ROAD_HALF + 8;
-     const onVRoad = ry <= ROAD_EDGE && rx <= ROAD_HALF + 8;
+     const onHRoad = rx <= CONFIG.road.edgeHalf && ry <= CONFIG.road.width / 2 + 8;
+     const onVRoad = ry <= CONFIG.road.edgeHalf && rx <= CONFIG.road.width / 2 + 8;
      if (!onHRoad && !onVRoad) {
        const pushBack = 15 * dt;
-       if (rx > ROAD_EDGE + 2) {
+       if (rx > CONFIG.road.edgeHalf + 2) {
          const sign = this.mesh.position.z > 0 ? -1 : 1;
          this.mesh.position.z += sign * pushBack;
        }
-       if (ry > ROAD_EDGE + 2) {
+       if (ry > CONFIG.road.edgeHalf + 2) {
          const sign = this.mesh.position.x > 0 ? -1 : 1;
          this.mesh.position.x += sign * pushBack;
        }
