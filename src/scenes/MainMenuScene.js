@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { THEME, css } from '../styles/theme.js';
+import { SettingsService } from '../services/SettingsService.js';
+import { NameService } from '../services/NameService.js';
+import { ProgressService } from '../services/ProgressService.js';
 
 export class MainMenuScene {
   constructor(manager) {
@@ -8,39 +11,21 @@ export class MainMenuScene {
     this.overlay = null;
     this.lastCarIdx = parseInt(localStorage.getItem('lastCarIdx') || '0', 10);
     this._keyHandler = null;
-    this._resumeHandler = null;
-    this.settings = {
-      master: 0.8,
-      music: 0.7,
-      sfx: 0.9,
-      brightness: 1.0,
-      gfx: 'high',
-      fps: 60
-    };
-    try {
-      const saved = localStorage.getItem('menuSettings');
-      if (saved) this.settings = { ...this.settings, ...JSON.parse(saved) };
-    } catch (e) {}
+    this._unlockAudio = null;
+    this.settings = SettingsService.get();
   }
 
   saveSettings() {
-    localStorage.setItem('menuSettings', JSON.stringify(this.settings));
+    SettingsService.save();
     this.applySettings();
   }
 
   applySettings() {
-    const root = document.documentElement;
-    root.style.setProperty('--menu-brightness', this.settings.brightness);
+    SettingsService.applyBrightness();
+    SettingsService.applyGfx(this.manager.renderer, window.__composer);
+    SettingsService.applyVolumes(this.manager.sound);
     if (this.overlay) {
       this.overlay.style.filter = `brightness(${this.settings.brightness})`;
-    }
-    const mainScene = this.manager.scene;
-    if (mainScene && mainScene.background instanceof THREE.Color) {
-      const c = mainScene.background;
-      const r = Math.min(255, (c.r * 255 * this.settings.brightness) | 0);
-      const g = Math.min(255, (c.g * 255 * this.settings.brightness) | 0);
-      const b = Math.min(255, (c.b * 255 * this.settings.brightness) | 0);
-      mainScene.background = new THREE.Color(`rgb(${r},${g},${b})`);
     }
   }
 
@@ -66,23 +51,55 @@ export class MainMenuScene {
     const main = document.createElement('div');
     main.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:0';
 
+    const nameRow = document.createElement('div');
+    nameRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:6px';
+    const nameLbl = document.createElement('span');
+    nameLbl.style.cssText = 'font-family:Orbitron,monospace;font-size:12px;color:#889;letter-spacing:2px';
+    nameLbl.textContent = 'YOUR NAME';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.id = 'menu-name-input';
+    nameInput.maxLength = 12;
+    nameInput.value = NameService.get();
+    nameInput.placeholder = 'Enter your name...';
+    nameInput.style.cssText = 'padding:10px 16px;font-size:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:#0d1f1f;color:#fff;width:220px;text-align:center;font-family:Rajdhani,sans-serif;letter-spacing:1px;outline:none';
+    nameInput.onfocus = () => { nameInput.style.borderColor = 'rgba(255,255,255,0.15)'; };
+    nameInput.oninput = () => { NameService.set(nameInput.value); nameInput.style.borderColor = 'rgba(255,255,255,0.15)'; };
+    nameRow.appendChild(nameLbl);
+    nameRow.appendChild(nameInput);
+    main.appendChild(nameRow);
+    this._nameInput = nameInput;
+
+    const requireName = () => {
+      const name = NameService.get();
+      if (!name) {
+        nameInput.style.borderColor = '#ff6b35';
+        nameInput.focus();
+        return null;
+      }
+      return name;
+    };
+
     const playBtn = document.createElement('button');
     playBtn.className = 'btn';
     playBtn.textContent = 'PLAY';
-    playBtn.onclick = () => { this.exit(); this.manager.start('select'); };
+    playBtn.onclick = () => { const name = requireName(); if (name) { this.exit(); this.manager.start('select', { playerName: name }); } };
 
     const worldBtn = document.createElement('button');
     worldBtn.className = 'btn btn-secondary';
     worldBtn.textContent = 'WORLD MAP';
     worldBtn.style.minWidth = '280px';
     worldBtn.onclick = () => {
+      const name = requireName();
+      if (!name) return;
       this.exit();
       this.manager.start('loading', {
         mode: 'world',
         carIdx: this.lastCarIdx || 0,
         color: null,
         charIdx: 0,
-        displayName: this.getCarName(this.lastCarIdx)
+        displayName: this.getCarName(this.lastCarIdx),
+        playerName: name
       });
     };
 
@@ -90,7 +107,7 @@ export class MainMenuScene {
     onlineBtn.className = 'btn btn-secondary';
     onlineBtn.textContent = 'PLAY ONLINE';
     onlineBtn.style.minWidth = '280px';
-    onlineBtn.onclick = () => { this.exit(); this.manager.start('rooms'); };
+    onlineBtn.onclick = () => { const name = requireName(); if (name) { this.exit(); this.manager.start('rooms', { playerName: name }); } };
 
     const settingsBtn = document.createElement('button');
     settingsBtn.className = 'btn btn-secondary';
@@ -108,6 +125,14 @@ export class MainMenuScene {
     d.appendChild(root);
     document.body.appendChild(d);
     this.overlay = d;
+
+    this.settings = SettingsService.get();
+    this.overlay.style.filter = `brightness(${this.settings.brightness})`;
+    this.manager.sound.init();
+    SettingsService.applyVolumes(this.manager.sound);
+    this.manager.sound.startBGM();
+    this._unlockAudio = () => { this.manager.sound.resume(); };
+    document.addEventListener('pointerdown', this._unlockAudio, { once: true });
 
     this._keyHandler = (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -139,6 +164,15 @@ export class MainMenuScene {
     carName.style.cssText = 'font-size:12px;color:#667;letter-spacing:1px';
     carName.textContent = this.getCarName(this.lastCarIdx);
     right.appendChild(carName);
+
+    const cash = document.createElement('span');
+    cash.id = 'menu-cash';
+    cash.style.cssText = "font-family:'Orbitron',monospace;font-size:13px;font-weight:900;color:#ffcc00;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,200,0,0.25);background:rgba(0,0,0,0.35)";
+    const syncCash = () => { cash.textContent = `💰 $${ProgressService.cash.toLocaleString()}`; };
+    syncCash();
+    window.addEventListener('nitro-progress', syncCash);
+    this._syncCash = syncCash;
+    right.appendChild(cash);
 
     const mkBtn = (label, fn) => {
       const b = document.createElement('button');
@@ -243,9 +277,9 @@ export class MainMenuScene {
       return row;
     };
 
-    box.appendChild(makeSlider('MASTER', 0, 1, 0.05, s.master, v => { s.master = v; }));
-    box.appendChild(makeSlider('MUSIC', 0, 1, 0.05, s.music, v => { s.music = v; }));
-    box.appendChild(makeSlider('SFX', 0, 1, 0.05, s.sfx, v => { s.sfx = v; }));
+    box.appendChild(makeSlider('MASTER', 0, 1, 0.05, s.master, v => { s.master = v; SettingsService.applyVolumes(this.manager.sound); }));
+    box.appendChild(makeSlider('MUSIC', 0, 1, 0.05, s.music, v => { s.music = v; SettingsService.applyVolumes(this.manager.sound); }));
+    box.appendChild(makeSlider('SFX', 0, 1, 0.05, s.sfx, v => { s.sfx = v; SettingsService.applyVolumes(this.manager.sound); }));
     box.appendChild(makeSlider('BRIGHTNESS', 0.5, 1.5, 0.05, s.brightness, v => {
       s.brightness = v;
       this.applySettings();
@@ -266,7 +300,7 @@ export class MainMenuScene {
         gfxGroup.querySelectorAll('.fh-option').forEach(o => o.classList.remove('active'));
         opt.classList.add('active');
         s.gfx = level;
-        this.applyGfx(level);
+        this.applySettings();
       };
       gfxGroup.appendChild(opt);
     });
@@ -289,7 +323,6 @@ export class MainMenuScene {
         fpsGroup.querySelectorAll('.fh-option').forEach(o => o.classList.remove('active'));
         opt.classList.add('active');
         s.fps = fps;
-        this.applyFps(fps);
       };
       fpsGroup.appendChild(opt);
     });
@@ -319,35 +352,13 @@ export class MainMenuScene {
     d.onclick = (e) => { if (e.target === d) saveBtn.click(); };
   }
 
-  applyGfx(level) {
-    const renderer = this.manager.renderer;
-    const composer = window.__composer;
-    if (!composer) return;
-    const passes = composer.passes || [];
-    if (level === 'low') {
-      renderer.shadowMap.enabled = false;
-      if (passes[1]) passes[1].enabled = false;
-    } else if (level === 'medium') {
-      renderer.shadowMap.enabled = true;
-      if (passes[1]) passes[1].enabled = true;
-      if (passes[1]) passes[1].strength = 0.25;
-    } else {
-      renderer.shadowMap.enabled = true;
-      if (passes[1]) passes[1].enabled = true;
-      if (passes[1]) passes[1].strength = 0.4;
-    }
-  }
-
-  applyFps(fps) {
-    const renderer = this.manager.renderer;
-    if (!renderer) return;
-    renderer.setPixelRatio(fps === 120 ? Math.min(window.devicePixelRatio, 2) : Math.min(window.devicePixelRatio, 1.5));
-  }
-
   exit() {
     if (this.overlay) { this.overlay.remove(); this.overlay = null; }
     if (this._settingsOverlay) { this._settingsOverlay.remove(); this._settingsOverlay = null; }
     if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
+    if (this._unlockAudio) document.removeEventListener('pointerdown', this._unlockAudio);
+    if (this._syncCash) window.removeEventListener('nitro-progress', this._syncCash);
+    this.manager.sound.stopBGM();
     this.saveSettings();
   }
 }

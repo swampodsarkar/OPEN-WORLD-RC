@@ -13,7 +13,7 @@ export class SceneManager {
   constructor(renderer) {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2500);
     this.models = {};
     this.crazyGames = new CrazyGamesService();
     this.sound = new SoundService();

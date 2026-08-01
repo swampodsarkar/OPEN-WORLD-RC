@@ -1,13 +1,15 @@
 import { CONFIG } from '../config.js';
+import { ProgressService } from '../services/ProgressService.js';
 
 export class Car {
-  constructor(scene, model, x, z, name) {
+  constructor(scene, model, x, z, name, carId = null, upgrades = null) {
     this.scene = scene;
     this.name = name.replace(/-/g, ' ');
+    this.carId = carId || name.replace(/\s/g, '-').toLowerCase();
     this.mesh = model.clone();
     this.mesh.position.set(x, 0, z);
     this.mesh.scale.set(3, 3, 3);
-    this.mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        this.mesh.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.frustumCulled = false; } });
     scene.add(this.mesh);
 
     this.speed = 0;
@@ -23,10 +25,16 @@ export class Car {
     this.fuelConsumption = 0.08;
     this.damageSpeedPenalty = 0.4;
     this.lowFuelPenalty = 0.3;
+
+    this.upgrades = upgrades || ProgressService.getUpgradeStats(this.carId);
+    this.maxSpeed = CONFIG.car.maxSpeed * this.upgrades.maxSpeedMult;
+    this.gripMult = this.upgrades.gripMult;
+    this.boostMultiplier = this.upgrades.boostMult;
+    this.damageResist = this.upgrades.damageResist;
   }
 
   drive(input, dt) {
-    const dmgMult = 1 - (this.damage / this.maxDamage) * this.damageSpeedPenalty;
+    const dmgMult = 1 - (this.damage / this.maxDamage) * this.damageSpeedPenalty * (1 - this.damageResist);
     const fuelMult = this.fuel < 20 ? 0.3 + (this.fuel / 20) * 0.7 : 1;
 
     if (this.fuel > 0) {
@@ -37,14 +45,14 @@ export class Car {
       this.speed *= 0.95;
     }
 
-    const max = this.boost ? CONFIG.car.maxSpeed * CONFIG.car.boostMultiplier : CONFIG.car.maxSpeed;
+    const max = this.boost ? this.maxSpeed * CONFIG.car.boostMultiplier * this.boostMultiplier : this.maxSpeed;
     const adjMax = max * dmgMult * (this.fuel <= 0 ? 0.1 : 1);
     this.speed = Math.max(-adjMax * 0.3, Math.min(adjMax, this.speed));
 
     if (Math.abs(this.speed) > 0.5) {
       const turn = this.speed / max;
-      if (input.left) this.mesh.rotation.y += CONFIG.car.steerSpeed * turn * dt * dmgMult;
-      if (input.right) this.mesh.rotation.y -= CONFIG.car.steerSpeed * turn * dt * dmgMult;
+      if (input.left) this.mesh.rotation.y += CONFIG.car.steerSpeed * turn * dt * dmgMult * this.gripMult;
+      if (input.right) this.mesh.rotation.y -= CONFIG.car.steerSpeed * turn * dt * dmgMult * this.gripMult;
     }
 
     if (this.fuel > 0 && Math.abs(this.speed) > 1) {
@@ -60,9 +68,26 @@ export class Car {
     this.mesh.rotation.z = lean;
     this.mesh.position.y = bump;
 
-    const hw = CONFIG.world.half - 10;
-    this.mesh.position.x = Math.max(-hw, Math.min(hw, this.mesh.position.x));
-    this.mesh.position.z = Math.max(-hw, Math.min(hw, this.mesh.position.z));
+     const hw = CONFIG.world.half - 10;
+     this.mesh.position.x = Math.max(-hw, Math.min(hw, this.mesh.position.x));
+     this.mesh.position.z = Math.max(-hw, Math.min(hw, this.mesh.position.z));
+
+     const rx = Math.abs(this.mesh.position.z);
+     const ry = Math.abs(this.mesh.position.x);
+     const onHRoad = rx <= ROAD_EDGE && ry <= ROAD_HALF + 8;
+     const onVRoad = ry <= ROAD_EDGE && rx <= ROAD_HALF + 8;
+     if (!onHRoad && !onVRoad) {
+       const pushBack = 15 * dt;
+       if (rx > ROAD_EDGE + 2) {
+         const sign = this.mesh.position.z > 0 ? -1 : 1;
+         this.mesh.position.z += sign * pushBack;
+       }
+       if (ry > ROAD_EDGE + 2) {
+         const sign = this.mesh.position.x > 0 ? -1 : 1;
+         this.mesh.position.x += sign * pushBack;
+       }
+       if (Math.abs(this.speed) > 5) this.speed *= 0.95;
+     }
   }
 
   takeDamage(amount) {

@@ -22,6 +22,25 @@ const cityBuildings = [
   'low-detail-building-wide-a', 'low-detail-building-wide-b'
 ];
 
+const villageBuildings = [
+  'building-type-a', 'building-type-b', 'building-type-c', 'building-type-d', 'building-type-e',
+  'building-type-f', 'building-type-g', 'building-type-h', 'building-type-i', 'building-type-j',
+  'building-type-k', 'building-type-l', 'building-type-m', 'building-type-n', 'building-type-o',
+  'building-type-p', 'building-type-q', 'building-type-r', 'building-type-s', 'building-type-t',
+  'building-type-u'
+];
+
+const villageProps = [
+  'fence-1x2', 'fence-1x3', 'fence-1x4', 'fence-2x2', 'fence-2x3', 'fence-3x2', 'fence-3x3',
+  'fence-low', 'fence', 'driveway-long', 'driveway-short', 'path-long', 'path-short',
+  'path-stones-long', 'path-stones-messy', 'path-stones-short', 'planter', 'tree-large', 'tree-small'
+];
+
+const boatModels = [
+  'boat-speed-a', 'boat-speed-b', 'boat-speed-c', 'boat-speed-d',
+  'boat-house-a', 'boat-sail-a', 'boat-row-large', 'buoy', 'ship-small'
+];
+
 const LOADING_TIPS = [
   'Tip: Press SPACE for boost!',
   'Tip: Visit the repair shop to fix damage.',
@@ -32,7 +51,8 @@ const LOADING_TIPS = [
   'Tip: Drift around corners for style points!',
   'Tip: Watch your fuel gauge — don\'t run out!',
   'Tip: Headlights turn on automatically at night.',
-  'Tip: Buildings cause damage — watch out!'
+  'Tip: Buildings cause damage — watch out!',
+  'Tip: Drive a speedboat at the desert lake!'
 ];
 
 const CHARACTER_MODEL = 'assets/characters/characterMedium.fbx';
@@ -41,7 +61,7 @@ const CHARACTER_SKINS = ['criminalMaleA', 'cyborgFemaleA', 'skaterFemaleA', 'ska
 export class PreloadScene {
   constructor(manager) {
     this.manager = manager;
-    this.totalModels = carList.length + cityBuildings.length + 1 + CHARACTER_SKINS.length;
+    this.totalModels = carList.length + cityBuildings.length + CHARACTER_SKINS.length + villageBuildings.length + villageProps.length + boatModels.length;
     this.completed = 0;
     this.startTime = Date.now();
     this.tipInterval = null;
@@ -77,6 +97,8 @@ export class PreloadScene {
 
     this.manager.models = {};
     this.manager.cityModels = {};
+    this.manager.villageModels = {};
+    this.manager.boatModels = {};
 
     this.startTips();
 
@@ -95,8 +117,9 @@ export class PreloadScene {
 
     const carItems = carList.map(n => ({ type: 'car', path: `assets/cars/${n}.glb`, name: n }));
     const buildingItems = cityBuildings.map(n => ({ type: 'building', path: `assets/city/buildings/${n}.glb`, name: n }));
-
-    const allItems = [...carItems, ...buildingItems];
+    const villageItems = [...villageBuildings, ...villageProps].map(n => ({ type: 'village', path: `assets/village/${n}.glb`, name: n }));
+    const boatItems = boatModels.map(n => ({ type: 'boat', path: `assets/watercraft/${n}.glb`, name: n }));
+    const allItems = [...carItems, ...buildingItems, ...villageItems, ...boatItems];
     const BATCH_SIZE = 6;
     let loaded = 0;
 
@@ -113,6 +136,8 @@ export class PreloadScene {
             group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
             if (item.type === 'car') this.manager.models[item.name] = group;
             else if (item.type === 'building') this.manager.cityModels[item.name] = group;
+            else if (item.type === 'village') this.manager.villageModels[item.name] = group;
+            else if (item.type === 'boat') this.manager.boatModels[item.name] = group;
             this.completed++;
             this.updateBar();
             if (this.completed >= this.totalModels && skyLoaded >= skyboxList.length) this.done();

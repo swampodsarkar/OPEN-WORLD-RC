@@ -1,5 +1,6 @@
 let _fb = null;
 const fb = () => (_fb ||= import('../services/FirebaseService.js'));
+import { NameService } from '../services/NameService.js';
 
 const CAR_IDS = [
   'race', 'race-future', 'sedan-sports', 'hatchback-sports',
@@ -17,7 +18,8 @@ export class RoomScene {
     this.lobbyListener = null;
   }
 
-  enter() {
+  enter(data) {
+    this.playerName = (data && data.playerName) || NameService.get();
     this.renderUI();
     this.loadRooms();
   }
@@ -31,7 +33,7 @@ export class RoomScene {
         <h1 style="font-size:32px;color:#44aaff;margin:0">ONLINE CO-OP</h1>
         <p style="color:#666;margin:4px 0 16px">Free Roam • Up to 5 players per room</p>
         <div style="margin-bottom:16px">
-          <input id="room-name-input" type="text" placeholder="Your Name" maxlength="12" style="padding:8px 16px;font-size:16px;border-radius:6px;border:none;background:#222;color:#fff;width:200px;text-align:center">
+          <input id="room-name-input" type="text" placeholder="Your Name" maxlength="12" value="${this.playerName}" style="padding:8px 16px;font-size:16px;border-radius:6px;border:none;background:#222;color:#fff;width:200px;text-align:center">
         </div>
         <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
           <button id="create-room-btn" style="padding:10px 24px;font-size:16px;background:#44aaff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">+ CREATE ROOM</button>
@@ -98,6 +100,8 @@ export class RoomScene {
     const nameInput = document.getElementById('room-name-input');
     const name = nameInput?.value.trim() || 'Driver';
     if (!name) { nameInput.focus(); return; }
+    this.playerName = name;
+    NameService.set(name);
     if (this.currentRoomId) return;
     const { db, ref, push, set } = await fb();
     const roomsRef = ref(db, 'rooms');
@@ -124,6 +128,8 @@ export class RoomScene {
     const nameInput = document.getElementById('room-name-input');
     const name = nameInput?.value.trim() || 'Guest';
     if (!name) { nameInput.focus(); return; }
+    this.playerName = name;
+    NameService.set(name);
     if (this.currentRoomId) return;
     const players = roomData.players || {};
     const count = Object.keys(players).length;

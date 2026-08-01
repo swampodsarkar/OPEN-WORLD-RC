@@ -2,11 +2,11 @@ export const CONFIG = {
   width: window.innerWidth,
   height: window.innerHeight,
   world: {
-    size: 2000,
-    half: 1000
+    size: 5000,
+    half: 2500
   },
   road: {
-    edgeHalf: 400,
+    edgeHalf: 1500,
     width: 26,
     barrierHeight: 3,
     barrierWidth: 1,

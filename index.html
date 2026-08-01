@@ -7,7 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>NITRO ROAM</title>
-  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+  <link rel="icon" href="data:,">
+  <script defer src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #0f2b2b; }
@@ -19,7 +20,7 @@
       align-items: center;
       background: #0f2b2b;
     }
-    canvas { display: block; }
+    canvas { display: block; flex: none; }
     @media (orientation: landscape) and (max-height: 500px) {
       #game-container { align-items: stretch; }
     }

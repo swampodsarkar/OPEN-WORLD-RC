@@ -136,5 +136,37 @@ css.textContent = `
     color: ${THEME.primaryEnd};
     box-shadow: 0 0 15px rgba(255,107,53,0.2);
   }
+
+  .fh-option {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: #889;
+    cursor: pointer;
+    font-family: ${THEME.fontBody};
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+    min-width: 56px;
+    text-align: center;
+  }
+  .fh-option:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .fh-option.active { background: rgba(68,170,255,0.18); border-color: rgba(68,170,255,0.5); color: ${THEME.secondary}; }
+  .fh-btn {
+    padding: 12px 32px;
+    font-size: 14px;
+    font-weight: 700;
+    background: linear-gradient(135deg, ${THEME.primary}, ${THEME.primaryEnd});
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    font-family: ${THEME.fontBody};
+    transition: all 0.15s ease;
+  }
+  .fh-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(255,107,53,0.4); }
 `;
 document.head.appendChild(css);

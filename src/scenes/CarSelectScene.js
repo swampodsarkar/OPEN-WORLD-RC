@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import { NameService } from '../services/NameService.js';
+import { ProgressService } from '../services/ProgressService.js';
 
 const CAR_IDS = [
   'race', 'race-future', 'sedan-sports', 'hatchback-sports',
@@ -45,6 +47,11 @@ export class CarSelectScene {
 
   enter() {
     const scene = this.manager.scene;
+    ProgressService.init();
+    if (!ProgressService.owns(CAR_IDS[this.selectedIdx])) {
+      this.selectedIdx = Math.max(0, CAR_IDS.indexOf(ProgressService.selectedCar));
+      localStorage.setItem('lastCarIdx', String(this.selectedIdx));
+    }
     scene.background = new THREE.Color(0x080810);
     scene.fog = new THREE.Fog(0x080810, 30, 60);
     this.createEnvironment();
@@ -171,8 +178,21 @@ export class CarSelectScene {
     titleMain.textContent = 'NITRO ROAM';
 
     const subtitle = document.createElement('div');
-    subtitle.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:13px;color:#557;letter-spacing:4px;text-transform:uppercase;margin-bottom:18px;animation:fadeUp 0.6s ease-out 0.2s both';
+    subtitle.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:13px;color:#557;letter-spacing:4px;text-transform:uppercase;margin-bottom:12px;animation:fadeUp 0.6s ease-out 0.2s both';
     subtitle.textContent = 'Choose Your Vehicle';
+
+    const cashBar = document.createElement('div');
+    cashBar.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;padding:7px 18px;border-radius:999px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,200,0,0.25);box-shadow:0 0 18px rgba(255,200,0,0.15);animation:fadeUp 0.6s ease-out 0.25s both';
+    cashBar.innerHTML = '<span style="font-size:14px">💰</span>';
+    const cashVal = document.createElement('span');
+    cashVal.id = 'sel-cash';
+    cashVal.style.cssText = "font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:#ffcc00;text-shadow:0 0 12px rgba(255,200,0,0.4)";
+    cashVal.textContent = `$${ProgressService.cash.toLocaleString()}`;
+    cashBar.appendChild(cashVal);
+    const cashHint = document.createElement('span');
+    cashHint.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:10px;color:#886600;letter-spacing:1px';
+    cashHint.textContent = 'BALANCE';
+    cashBar.appendChild(cashHint);
 
     const controls = document.createElement('div');
     controls.style.cssText = 'display:flex;gap:16px;align-items:center;justify-content:center;margin-bottom:18px;animation:fadeUp 0.6s ease-out 0.3s both';
@@ -200,9 +220,13 @@ export class CarSelectScene {
     nameEl.id = 'sel-name';
     nameEl.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:13px;color:#889;font-weight:700;letter-spacing:1px';
     nameEl.textContent = displayName;
+    const statusEl = document.createElement('span');
+    statusEl.id = 'sel-status';
+    statusEl.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:11px;font-weight:900;letter-spacing:1px;padding:2px 10px;border-radius:999px';
     info.appendChild(countEl);
     info.appendChild(sep);
     info.appendChild(nameEl);
+    info.appendChild(statusEl);
 
     const colorSection = document.createElement('div');
     colorSection.style.cssText = 'margin-bottom:20px;animation:fadeUp 0.6s ease-out 0.5s both';
@@ -239,6 +263,7 @@ export class CarSelectScene {
     panel.appendChild(titleTop);
     panel.appendChild(titleMain);
     panel.appendChild(subtitle);
+    panel.appendChild(cashBar);
     panel.appendChild(controls);
     panel.appendChild(info);
     panel.appendChild(colorSection);
@@ -246,6 +271,8 @@ export class CarSelectScene {
     d.appendChild(panel);
     document.body.appendChild(d);
     this.overlay = d;
+
+    this.refreshCarState();
 
     prevBtn.onclick = () => this.selectCar(-1);
     nextBtn.onclick = () => this.selectCar(1);
@@ -274,17 +301,71 @@ export class CarSelectScene {
     const nameEl = document.getElementById('sel-name');
     if (countEl) countEl.textContent = `${this.selectedIdx + 1} / ${CAR_IDS.length}`;
     if (nameEl) nameEl.textContent = CAR_NAMES[this.selectedIdx] || CAR_IDS[this.selectedIdx].replace(/-/g, ' ');
+    this.refreshCarState();
+  }
+
+  refreshCarState() {
+    const id = CAR_IDS[this.selectedIdx];
+    const owned = ProgressService.owns(id);
+    const price = ProgressService.price(id);
+    const cashEl = document.getElementById('sel-cash');
+    const statusEl = document.getElementById('sel-status');
+    if (cashEl) cashEl.textContent = `$${ProgressService.cash.toLocaleString()}`;
+    if (statusEl) {
+      if (owned) {
+        statusEl.textContent = id === ProgressService.selectedCar ? 'SELECTED' : 'OWNED';
+        statusEl.style.color = '#44ff88';
+        statusEl.style.background = 'rgba(68,255,136,0.12)';
+      } else {
+        statusEl.textContent = `LOCKED · $${price.toLocaleString()}`;
+        statusEl.style.color = '#ff5566';
+        statusEl.style.background = 'rgba(255,85,102,0.12)';
+      }
+    }
+    const driveBtn = document.getElementById('sel-drive');
+    if (driveBtn) {
+      if (owned) {
+        driveBtn.textContent = id === ProgressService.selectedCar ? 'ENTER THE WORLD' : 'SELECT & ENTER';
+        driveBtn.style.background = 'linear-gradient(135deg,#ff6b35,#ff8844)';
+      } else {
+        driveBtn.textContent = `BUY $${price.toLocaleString()}`;
+        driveBtn.style.background = 'linear-gradient(135deg,#3fae4a,#5fd06a)';
+      }
+    }
+  }
+
+  _showBuyToast(msg, color = '#44ff88') {
+    const el = document.getElementById('sel-toast');
+    if (el) el.remove();
+    const t = document.createElement('div');
+    t.id = 'sel-toast';
+    t.style.cssText = `position:fixed;top:14%;left:50%;transform:translate(-50%,-50%);z-index:600;pointer-events:none;font-family:Orbitron,monospace;font-weight:900;font-size:18px;color:${color};text-shadow:0 0 20px rgba(68,255,136,0.5);opacity:1;transition:opacity 0.5s ease;letter-spacing:2px;text-align:center`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 600); }, 2000);
   }
 
   startGame() {
     if (this.isLoading) return;
+    const id = CAR_IDS[this.selectedIdx];
+    if (!ProgressService.owns(id)) {
+      if (ProgressService.buyCar(id)) {
+        this.refreshCarState();
+        this._showBuyToast(`${CAR_NAMES[this.selectedIdx]} OWNED!`);
+      } else {
+        this._showBuyToast('NOT ENOUGH CASH', '#ff5566');
+      }
+      return;
+    }
+    ProgressService.select(id);
     this.isLoading = true;
     this.exit();
     this.manager.start('loading', {
       carIdx: this.selectedIdx,
       color: COLORS[this.selectedColor].hex,
       charIdx: 0,
-      displayName: CAR_NAMES[this.selectedIdx]
+      displayName: CAR_NAMES[this.selectedIdx],
+      playerName: NameService.get()
     });
   }
 
