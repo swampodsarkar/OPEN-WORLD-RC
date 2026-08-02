@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { Car } from '../entities/Car.js';
 import { Boat } from '../entities/Boat.js';
+import { Plane } from '../entities/Plane.js';
 import { SoundService } from '../services/SoundService.js';
 import { SettingsService } from '../services/SettingsService.js';
 import { NameService } from '../services/NameService.js';
@@ -51,6 +52,10 @@ const DAY_DURATION = 120;
 const LAKE_CENTER = new THREE.Vector2(1850, 550);
 const LAKE_RADIUS = 260;
 const DOCK_POS = { x: 1660, z: 620 };
+
+const AIRPORT_CENTER = { x: 360, z: -(OUTER_RING + 150) };
+const AIRPORT_W = 420;
+const AIRPORT_D = 220;
 
 export class GameScene {
   constructor(manager) {
@@ -119,6 +124,8 @@ export class GameScene {
     this.parkedCars = [];
     this.parkedBoats = [];
     this.currentBoat = null;
+    this.parkedPlanes = [];
+    this.currentPlane = null;
     this.lakeWater = null;
     this._waterTime = 0;
 this.photoMode = false;
@@ -289,6 +296,7 @@ this.addLights(scene);
      this.spawnCar(scene);
      this.createRainSystem();
      this.spawnNPCCars();
+     this.buildAirport(scene);
    }
 
 updateSky(scene) {
@@ -821,6 +829,237 @@ addGround(scene) {
     return best;
   }
 
+  buildAirport(scene) {
+    const cx = AIRPORT_CENTER.x, cz = AIRPORT_CENTER.z;
+    const halfW = AIRPORT_W / 2, halfD = AIRPORT_D / 2;
+
+    // Apron / hardstand
+    const apronMat = new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.85, metalness: 0.05, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    const apron = new THREE.Mesh(new THREE.PlaneGeometry(AIRPORT_W, AIRPORT_D), apronMat);
+    apron.rotation.x = -Math.PI / 2; apron.position.set(cx, 0.14, cz);
+    apron.receiveShadow = true; this.addObj(apron);
+    this.buildings.push({ x: cx, z: cz, r: Math.max(halfW, halfD), ground: true });
+
+    // Runway (long strip along X)
+    const rwLen = AIRPORT_W + 220, rwW = 22;
+    const runwayMat = new THREE.MeshStandardMaterial({ color: 0x454a50, roughness: 0.9, metalness: 0.05, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    const runway = new THREE.Mesh(new THREE.PlaneGeometry(rwLen, rwW), runwayMat);
+    runway.rotation.x = -Math.PI / 2; runway.position.set(cx, 0.1, cz + halfD - 16);
+    runway.receiveShadow = true; this.addObj(runway);
+
+    // Runway markings
+    const markMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const centerMarks = [];
+    for (let t = -halfW - 60; t <= halfW + 60; t += 16) {
+      if (Math.abs(t) < 180) continue;
+      const d = new THREE.Mesh(new THREE.BoxGeometry(2, 0.05, 0.5), markMat);
+      d.position.set(cx + t, 0.18, cz + halfD - 16);
+      this.addObj(d);
+    }
+    for (let t = -halfW; t <= halfW; t += 20) {
+      const d = new THREE.Mesh(new THREE.BoxGeometry(4, 0.05, 0.4), markMat);
+      d.position.set(cx + t, 0.18, cz + halfD - 28);
+      this.addObj(d);
+    }
+    // Threshold bars
+    for (let i = 0; i < 8; i++) {
+      const d = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 10), markMat);
+      d.position.set(cx + (-halfW - 45 + i * 2.4), 0.18, cz + halfD - 16);
+      this.addObj(d);
+      const d2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 10), markMat);
+      d2.position.set(cx + (halfW + 45 - i * 2.4), 0.18, cz + halfD - 16);
+      this.addObj(d2);
+    }
+
+    // Control tower
+    const towerBodyMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.5, metalness: 0.2 });
+    const towerGlass = new THREE.MeshStandardMaterial({ color: 0x224466, emissive: 0x112233, emissiveIntensity: 0.3, roughness: 0.1, metalness: 0.6 });
+    const tw = new THREE.Group();
+    const twBody = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.5, 26, 8), towerBodyMat);
+    twBody.position.y = 13; twBody.castShadow = true; tw.add(twBody);
+    const twCab = new THREE.Mesh(new THREE.CylinderGeometry(5, 4.5, 4, 8), towerBodyMat);
+    twCab.position.y = 28; twCab.castShadow = true; tw.add(twCab);
+    const twGlass = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.6, 2.6, 24, 1, true), towerGlass);
+    twGlass.position.y = 26.6; tw.add(twGlass);
+    const twRoof = new THREE.Mesh(new THREE.ConeGeometry(5, 2.5, 16), new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.4 }));
+    twRoof.position.y = 31; tw.add(twRoof);
+    tw.position.set(cx - halfW + 40, 0, cz - halfD + 30);
+    this.addObj(tw);
+    this.buildings.push({ x: tw.position.x, z: tw.position.z, r: 7 });
+
+    // Terminal hangar
+    const hangarMat = new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.6, metalness: 0.1 });
+    const hangarRoof = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.5 });
+    const hg = new THREE.Group();
+    const hgBody = new THREE.Mesh(new THREE.BoxGeometry(34, 10, 26), hangarMat);
+    hgBody.position.y = 5; hgBody.castShadow = true; hg.add(hgBody);
+    const hgArch = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 34, 24, 1, true, 0, Math.PI), hangarRoof);
+    hgArch.rotation.z = Math.PI / 2; hgArch.rotation.y = Math.PI / 2;
+    hgArch.position.y = 18; hgArch.castShadow = true; hg.add(hgArch);
+    hg.position.set(cx + halfW - 80, 0, cz - halfD + 40);
+    this.addObj(hg);
+    this.buildings.push({ x: hg.position.x, z: hg.position.z, r: 22 });
+
+    // Ground lighting
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const light = new THREE.Mesh(new THREE.CircleGeometry(0.5, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffaa33 }));
+      light.rotation.x = -Math.PI / 2;
+      light.position.set(cx + Math.cos(a) * halfW * 0.7, 0.12, cz + Math.sin(a) * halfD * 0.7);
+      this.addObj(light);
+    }
+
+    this.spawnParkedPlanes(scene);
+  }
+
+  spawnParkedPlanes(scene) {
+    if (this.multi) return;
+    const pm = this.manager.planeModels;
+    if (!pm || !pm['f15']) return;
+    const cx = AIRPORT_CENTER.x, cz = AIRPORT_CENTER.z;
+    const spots = [
+      { x: cx - 140, z: cz - 70, rot: 0.6 },
+      { x: cx - 90, z: cz - 95, rot: 1.2 },
+      { x: cx + 120, z: cz - 60, rot: 0 },
+      { x: cx + 160, z: cz - 30, rot: -0.5 }
+    ];
+    spots.forEach((s, i) => {
+      const p = new Plane(scene, pm['f15'], s.x, s.z, 'F-15 Eagle');
+      p.mesh.rotation.y = s.rot;
+      p.heading = s.rot;
+      p.vacate();
+      this.parkedPlanes.push(p);
+    });
+  }
+
+  nearestParkedPlane(r) {
+    let best = null, bestD = r;
+    for (const p of this.parkedPlanes) {
+      const d = Math.hypot(this.footPos.x - p.mesh.position.x, this.footPos.z - p.mesh.position.z);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best;
+  }
+
+  enterPlane(plane) {
+    if (!plane || plane.damage >= plane.maxDamage) {
+      if (plane) this._showToast('This plane is destroyed!', '#ff4444');
+      return;
+    }
+    this.currentPlane = plane;
+    plane.occupy();
+    plane.engineOn = true;
+    this.onFoot = false;
+    this.syncHUD();
+    this.sound.startEngine();
+    this.sound.setEngineType('race');
+    this.manager.camera.fov = CONFIG.camera.minFov;
+    this.manager.camera.updateProjectionMatrix();
+    this._targetFov = CONFIG.camera.minFov;
+    this.updateFootPrompt();
+    this._showToast('F-15 Eagle - Entered! \u2191 Climb \u2193 Descend', '#ffaa33');
+  }
+
+  exitPlane() {
+    const plane = this.currentPlane;
+    if (!plane) return;
+    this.footPos.set(plane.mesh.position.x + 3, 0, plane.mesh.position.z + 3);
+    this.footYaw = 0;
+    this.footPitch = 0;
+    this.footY = 0;
+    this.footVelY = 0;
+    plane.vacate();
+    plane.engineOn = false;
+    plane.altitude = 1.6;
+    this.currentPlane = null;
+    this.onFoot = true;
+    this.sound.stopEngine();
+    this.syncHUD();
+    this.updateFootPrompt();
+  }
+
+  updatePlane(dt) {
+    const plane = this.currentPlane;
+    if (!plane) return;
+    const mergedInput = {
+      forward: this.input.forward || this.touchInput.forward,
+      backward: this.input.backward || this.touchInput.backward,
+      left: this.input.left || this.touchInput.left,
+      right: this.input.right || this.touchInput.right,
+      boost: this.input.boost || this.touchInput.boost
+    };
+    plane.drive(mergedInput, dt);
+
+    // Collision damage against buildings/towers/hangars
+    if (!this.isCreative && plane.altitude > 2.5) {
+      for (const b of this.buildings) {
+        if (b.ground) continue;
+        const dx = plane.mesh.position.x - b.x;
+        const dz = plane.mesh.position.z - b.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < b.r + 8 && plane.altitude < b.r) {
+          plane.takeDamage((b.r - dist + 8) * 1.5 + Math.abs(plane.speed) * 0.05);
+          const nx = dx / (dist || 1), nz = dz / (dist || 1);
+          plane.mesh.position.x += nx * 8;
+          plane.mesh.position.z += nz * 8;
+          plane.speed *= 0.4;
+          this.shakeScreen(0.4, 0.3);
+          this.sound.playCollision(1);
+          break;
+        }
+      }
+    }
+
+    // Crash detection
+    if (plane.damage >= plane.maxDamage) {
+      this._showToast('PLANE CRASHED!', '#ff4444');
+      this.shakeScreen(0.7, 0.6);
+      this.sound.playCollision(1);
+    }
+
+    // Camera
+    const cam = this.manager.camera;
+    const headingBack = plane.mesh.rotation.y + Math.PI;
+    const cx = plane.mesh.position.x + Math.sin(headingBack) * 16;
+    const cz = plane.mesh.position.z + Math.cos(headingBack) * 16;
+    const cy = plane.mesh.position.y + 5;
+    const target = new THREE.Vector3(
+      plane.mesh.position.x + Math.sin(plane.mesh.rotation.y) * 10,
+      plane.mesh.position.y + 1,
+      plane.mesh.position.z + Math.cos(plane.mesh.rotation.y) * 10
+    );
+    this.cameraTarget.lerp(target, 0.2);
+    cam.position.lerp(new THREE.Vector3(cx, cy, cz), 0.12);
+    cam.lookAt(this.cameraTarget);
+
+    const speedKmh = Math.abs(plane.speed) * 3.6;
+    this._targetFov = CONFIG.camera.minFov + (CONFIG.camera.maxFov - CONFIG.camera.minFov) * Math.min(1, speedKmh / (plane.maxSpeed * 3.6));
+    cam.fov = THREE.MathUtils.lerp(cam.fov, this._targetFov, dt * 5);
+    cam.updateProjectionMatrix();
+
+    this.sound.updateEngine(Math.abs(plane.speed), plane.maxSpeed);
+
+    if (this.hudEls.speed) this.hudEls.speed.textContent = Math.round(speedKmh);
+    if (this.hudEls.speedBar) {
+      const pct = Math.min(100, (Math.abs(plane.speed) / plane.maxSpeed) * 100);
+      this.hudEls.speedBar.style.transform = `rotate(${-120 + (pct / 100) * 240}deg)`;
+    }
+    if (this.hudEls.fuel) this.hudEls.fuel.textContent = '∞';
+    if (this.hudEls.fuelBar) this.hudEls.fuelBar.style.width = '100%';
+    if (this.hudEls.damage) this.hudEls.damage.textContent = Math.round(plane.damage);
+    if (this.hudEls.damageBar) this.hudEls.damageBar.style.width = Math.min(100, plane.damage) + '%';
+    if (this.hudEls.car) this.hudEls.car.textContent = '✈️ ' + plane.name.toUpperCase();
+
+    this.drawMinimap();
+    this.updateFootPrompt();
+  }
+
+  updateFootPad() {
+    const el = document.getElementById('fp-crosshair');
+    if (el) el.style.display = 'none';
+  }
+
   enterBoat(boat) {
     if (!boat) return;
     this.currentBoat = boat;
@@ -1001,7 +1240,11 @@ this.lakeWater.material.opacity = 0.84 + Math.sin(this._waterTime * 1.6) * 0.04;
     ch.style.display = 'block';
     const car = this.nearestParkedCar(3);
     const boat = this.nearestParkedBoat(4.5);
-    if (boat) {
+    const plane = this.nearestParkedPlane(7);
+    if (plane) {
+      el.style.display = 'block';
+      el.textContent = 'Press E to enter plane';
+    } else if (boat) {
       el.style.display = 'block';
       el.textContent = 'Press E to enter boat';
     } else if (car) {
@@ -1739,7 +1982,9 @@ updateLighting(dt) {
       ? this.footPos
       : (this.currentBoat
         ? this.currentBoat.mesh.position
-        : (this.currentCar ? this.currentCar.mesh.position : { x: 0, z: 0 }));
+        : (this.currentPlane
+          ? this.currentPlane.mesh.position
+          : (this.currentCar ? this.currentCar.mesh.position : { x: 0, z: 0 })));
     this.sunLight.position.set(cp.x + sunOffX, sunOffY, cp.z + sunOffZ);
     if (this.sunLight.target) this.sunLight.target.position.set(cp.x, 0, cp.z);
 
@@ -1894,13 +2139,18 @@ enterCar(car) {
     if (this.onFoot) {
       const car = this.nearestParkedCar(3);
       const boat = this.nearestParkedBoat(4.5);
-      if (boat && (!car || Math.hypot(this.footPos.x - boat.mesh.position.x, this.footPos.z - boat.mesh.position.z) < Math.hypot(this.footPos.x - car.mesh.position.x, this.footPos.z - car.mesh.position.z))) {
+      const plane = this.nearestParkedPlane(6);
+      if (plane && (!car || Math.hypot(this.footPos.x - plane.mesh.position.x, this.footPos.z - plane.mesh.position.z) < Math.hypot(this.footPos.x - car.mesh.position.x, this.footPos.z - car.mesh.position.z))) {
+        this.enterPlane(plane);
+      } else if (boat && (!car || Math.hypot(this.footPos.x - boat.mesh.position.x, this.footPos.z - boat.mesh.position.z) < Math.hypot(this.footPos.x - car.mesh.position.x, this.footPos.z - car.mesh.position.z))) {
         this.enterBoat(boat);
       } else if (car) {
         this.enterCar(car);
       }
     } else if (this.currentBoat) {
       this.exitBoat();
+    } else if (this.currentPlane) {
+      this.exitPlane();
     } else {
       this.exitCar();
     }
@@ -2890,6 +3140,11 @@ syncHUD() {
 
     if (this.currentBoat) {
       this.updateBoat(dt);
+      return;
+    }
+
+    if (this.currentPlane) {
+      this.updatePlane(dt);
       return;
     }
 
